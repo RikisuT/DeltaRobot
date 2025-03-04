@@ -43,6 +43,16 @@ DeltaTrajectoryGenerator::DeltaTrajectoryGenerator() : Node("delta_trajectory_ge
     }
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
+
+  this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("convert_to_joint_vel_trajectory");
+  // Wait until service is ready
+  while (!this->convert_to_joint_vel_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
+    if (!rclcpp::ok()) {
+      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
+      return;
+    }
+    RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
+  }
 }
 
 int main(int argc, char* argv[]) {

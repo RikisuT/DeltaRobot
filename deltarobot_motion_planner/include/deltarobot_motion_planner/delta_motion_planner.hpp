@@ -7,12 +7,14 @@
 #include "deltarobot_interfaces/srv/delta_ik.hpp"
 #include "deltarobot_interfaces/srv/delta_fk.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
+#include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
 
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
 using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTrajectory;
+using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVelTrajectory;
 using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 
@@ -25,6 +27,7 @@ private:
   rclcpp::Publisher<DeltaJoints>::SharedPtr joint_pub;
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
+  rclcpp::Client<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_client;
   rclcpp::Client<DeltaIK>::SharedPtr delta_ik_client;
   rclcpp::Client<DeltaFK>::SharedPtr delta_fk_client;
 
