@@ -35,6 +35,7 @@ private:
 
   void moveToPoint(const Point& point);
   void moveToConfiguration(const DeltaJoints& joints);
+  void moveThroughPoints(const std::vector<Point>& points);
 
   void playDemoTrajectory(const std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response);
   

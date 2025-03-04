@@ -111,6 +111,10 @@ void DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints) {
   );
 }
 
+void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
+  // Plan a continuous trajectory through the given points using 3rd order polynomial interpolation
+}
+
 void DeltaMotionPlanner::playDemoTrajectory(
   std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response) {
 
