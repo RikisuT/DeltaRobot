@@ -9,19 +9,22 @@
 #include "rcutils/cmdline_parser.h"
 #include "dynamixel_sdk/dynamixel_sdk.h"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
+#include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
 
+using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
+using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
+using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
 
 class DeltaMotorControl : public rclcpp::Node {
 public:
-  using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
-  using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
 
   DeltaMotorControl();
   ~DeltaMotorControl() = default;
 
   private:
   rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub;
+  rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub;
   rclcpp::Service<GetPositions>::SharedPtr get_positions_server;
   
   dynamixel::PortHandler* portHandler;

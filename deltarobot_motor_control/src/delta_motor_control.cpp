@@ -84,6 +84,51 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
     }
   );
 
+  this->delta_joint_vels_sub = this->create_subscription<DeltaJointVels>(
+    "set_joint_vels",
+    QOS_RKL10V,
+    [this](const DeltaJointVels::SharedPtr msg) -> void 
+    {
+      std::array<uint32_t, 3> motor_vels = {
+        msg->theta1_vel,
+        msg->theta2_vel,
+        msg->theta3_vel
+      };
+
+      // Clear the groupSyncWrite data
+      this->groupSyncWrite->clearParam();
+
+      // Velocity Value of X series is 4 byte data.
+      // For AX & MX(1.0) use 2 byte data(uint16_t) for the Velocity Value.
+      for (uint8_t i = 0; i < 3; i++) {
+        // Create parameter for GroupSyncWrite
+        uint8_t param_goal_velocity[4];
+        param_goal_velocity[0] = DXL_LOBYTE(DXL_LOWORD(motor_vels[i]));
+        param_goal_velocity[1] = DXL_HIBYTE(DXL_LOWORD(motor_vels[i]));
+        param_goal_velocity[2] = DXL_LOBYTE(DXL_HIWORD(motor_vels[i]));
+        param_goal_velocity[3] = DXL_HIBYTE(DXL_HIWORD(motor_vels[i]));
+
+        if (!this->groupSyncWrite->addParam(i + 1, param_goal_velocity)) {
+          RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
+        }
+      }
+
+      // Transmit all velocity commands at once
+      int dxl_comm_result = this->groupSyncWrite->txPacket();
+      if (dxl_comm_result != COMM_SUCCESS) {
+        RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
+      }
+
+      RCLCPP_DEBUG(
+        this->get_logger(),
+        "Motor Velocities Set: Motor1: %d, Motor2: %d, Motor3: %d",
+        msg->theta1_vel,
+        msg->theta2_vel,
+        msg->theta3_vel
+      );
+    }
+  );
+
   // Service to get the current motor positions
   this->get_positions_server = create_service<GetPositions>(
     "get_motor_positions",
