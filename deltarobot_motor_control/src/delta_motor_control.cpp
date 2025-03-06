@@ -152,7 +152,6 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
           i,
           ADDR_PRESENT_POSITION,
           &motor_positions[i - 1],
-          // reinterpret_cast<uint32_t*>(&motor_positions[i - 1]),
           &dxl_error
         );
         // Error Handling
@@ -174,6 +173,48 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
       response->motor3_position = motor_positions[2];
     }
   );
+
+  // Service to get the current motor velocities
+  this->get_velocities_server = create_service<GetVelocities>(
+    "get_motor_velocities",
+    [this](
+      [[maybe_unused]] const std::shared_ptr<GetVelocities::Request> request,
+      std::shared_ptr<GetVelocities::Response> response) -> void
+      {
+        // Array of Motor Velocities
+        std::array<uint32_t, 3> motor_velocities = { 0, 0, 0 };
+
+        for (uint8_t i = 1; i <= motor_velocities.size(); i++) {
+          uint8_t dxl_error = 0;
+          int dxl_comm_result = COMM_TX_FAIL;
+          // Read Present Velocity (length : 4 bytes) and Convert uint32 -> int32
+          // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
+          dxl_comm_result = this->packetHandler->read4ByteTxRx(
+            this->portHandler,
+            i,
+            ADDR_PRESENT_VELOCITY,
+            &motor_velocities[i - 1],
+            &dxl_error
+          );
+          // Error Handling
+          if (dxl_comm_result != COMM_SUCCESS) {
+            RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getTxRxResult(dxl_comm_result));
+          } else if (dxl_error != 0) {
+            RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getRxPacketError(dxl_error));
+          }
+        }
+
+        RCLCPP_INFO(
+          this->get_logger(),
+          "Motor Velocities: (%d, %d, %d) [rev/min]",
+          motor_velocities[0], motor_velocities[1], motor_velocities[2]
+        );
+
+        response->motor1_velocity = motor_velocities[0];
+        response->motor2_velocity = motor_velocities[1];
+        response->motor3_velocity = motor_velocities[2];
+      }
+    );
 }
 
 void DeltaMotorControl::initializeDynamixels() {

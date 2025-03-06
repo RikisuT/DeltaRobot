@@ -11,10 +11,12 @@
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
+#include "deltarobot_interfaces/srv/get_dynamixel_velocities.hpp"
 
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
+using GetVelocities = deltarobot_interfaces::srv::GetDynamixelVelocities;
 
 class DeltaMotorControl : public rclcpp::Node {
 public:
@@ -26,6 +28,7 @@ public:
   rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub;
   rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub;
   rclcpp::Service<GetPositions>::SharedPtr get_positions_server;
+  rclcpp::Service<GetVelocities>::SharedPtr get_velocities_server;
   
   dynamixel::PortHandler* portHandler;
   dynamixel::PacketHandler* packetHandler;
