@@ -140,7 +140,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
       std::shared_ptr<GetPositions::Response> response) -> void
     {
       // Array of Motor Positions
-      std::array<uint32_t, 3> motor_positions = { 0, 0, 0 };
+      std::array<int, 3> motor_positions = { 0, 0, 0 };
 
       for (uint8_t i = 1; i <= motor_positions.size(); i++) {
         uint8_t dxl_error = 0;
@@ -151,7 +151,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
           this->portHandler,
           i,
           ADDR_PRESENT_POSITION,
-          &motor_positions[i - 1],
+          reinterpret_cast<uint32_t*>(&motor_positions[i - 1]),
           &dxl_error
         );
         // Error Handling
@@ -182,7 +182,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
       std::shared_ptr<GetVelocities::Response> response) -> void
       {
         // Array of Motor Velocities
-        std::array<uint32_t, 3> motor_velocities = { 0, 0, 0 };
+        std::array<int, 3> motor_velocities = { 0, 0, 0 };
 
         for (uint8_t i = 1; i <= motor_velocities.size(); i++) {
           uint8_t dxl_error = 0;
@@ -193,7 +193,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
             this->portHandler,
             i,
             ADDR_PRESENT_VELOCITY,
-            &motor_velocities[i - 1],
+            reinterpret_cast<uint32_t *>(&motor_velocities[i - 1]),
             &dxl_error
           );
           // Error Handling
