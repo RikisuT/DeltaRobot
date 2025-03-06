@@ -21,6 +21,9 @@
 #define DOWN_POS 2048.0f // [motor ticks] this value is THETA_MAX in motor ticks
 #define RAD_TO_MOTOR_TICKS ((DOWN_POS - UP_POS) / THETA_MAX)
 
+// Converting from rad/s to rev/min
+#define RAD_S_TO_REV_MIN (60.0f * (1.0f / (2.0f * M_PI)))
+
 DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   RCLCPP_INFO(this->get_logger(), "DeltaMotorControl Started");
 
@@ -75,7 +78,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
       RCLCPP_DEBUG(
         this->get_logger(),
-        "Motor Positions Set: Motor1: %d, Motor2: %d, Motor3: %d",
+        "Motor Positions Set: (%d, %d, %d) [rad]",
         motor_positions[0],
         motor_positions[1],
         motor_positions[2]
@@ -90,9 +93,9 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
     [this](const DeltaJointVels::SharedPtr msg) -> void 
     {
       std::array<uint32_t, 3> motor_vels = {
-        msg->theta1_vel,
-        msg->theta2_vel,
-        msg->theta3_vel
+        this->convertToMotorVelocity(msg->theta1_vel),
+        this->convertToMotorVelocity(msg->theta2_vel),
+        this->convertToMotorVelocity(msg->theta3_vel)
       };
 
       // Clear the groupSyncWrite data
@@ -121,7 +124,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
       RCLCPP_DEBUG(
         this->get_logger(),
-        "Motor Velocities Set: Motor1: %d, Motor2: %d, Motor3: %d",
+        "Motor Velocities Set: (%f, %f, %f) [rad/s]",
         msg->theta1_vel,
         msg->theta2_vel,
         msg->theta3_vel
@@ -137,7 +140,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
       std::shared_ptr<GetPositions::Response> response) -> void
     {
       // Array of Motor Positions
-      std::array<int, 3> motor_positions = { 0, 0, 0 };
+      std::array<uint32_t, 3> motor_positions = { 0, 0, 0 };
 
       for (uint8_t i = 1; i <= motor_positions.size(); i++) {
         uint8_t dxl_error = 0;
@@ -148,7 +151,8 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
           this->portHandler,
           i,
           ADDR_PRESENT_POSITION,
-          reinterpret_cast<uint32_t*>(&motor_positions[i - 1]),
+          &motor_positions[i - 1],
+          // reinterpret_cast<uint32_t*>(&motor_positions[i - 1]),
           &dxl_error
         );
         // Error Handling
@@ -161,7 +165,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
       RCLCPP_INFO(
         this->get_logger(),
-        "Motor Positions: (%d, %d, %d)",
+        "Motor Positions: (%d, %d, %d) [motor ticks]",
         motor_positions[0], motor_positions[1], motor_positions[2]
       );
 
@@ -228,6 +232,12 @@ uint32_t DeltaMotorControl::convertToMotorPosition(float theta) {
   // theta = 0 -> 2800; theta = pi/2 -> 2048; theta = pi/4 -> 2424 (halfway between 2800 and 2048)
   float motor_pos = RAD_TO_MOTOR_TICKS * theta + UP_POS;
   return static_cast<uint32_t>(motor_pos);
+}
+
+uint32_t DeltaMotorControl::convertToMotorVelocity(float theta_vel) {
+  // Convert theta_vel [rad/s] to motor velocity [rev/min]
+  float motor_vel = RAD_S_TO_REV_MIN * theta_vel;
+  return static_cast<uint32_t>(motor_vel);
 }
 
 int main(int argc, char* argv[]) {

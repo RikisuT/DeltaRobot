@@ -34,6 +34,7 @@ public:
   void initializeDynamixels();
   
   uint32_t convertToMotorPosition(float theta);
+  uint32_t convertToMotorVelocity(float theta_vel);
 };
 
 #endif  // DELTA_MOTOR_CONTROL_HPP_
