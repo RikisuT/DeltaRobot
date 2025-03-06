@@ -40,6 +40,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/DeltaFK.srv"
   "srv/DeltaIK.srv"
   "srv/GetDynamixelPositions.srv"
+  "srv/GetDynamixelVelocities.srv"
   "srv/PlayFKTrajectory.srv"
   "srv/PlayIKTrajectory.srv"
   "srv/PlayDemoTrajectory.srv"
