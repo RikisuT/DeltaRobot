@@ -17,6 +17,7 @@ using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTraje
 using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVelTrajectory;
 using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
+using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 
 class DeltaMotionPlanner : public rclcpp::Node {
 public:
@@ -25,6 +26,7 @@ public:
 
 private:
   rclcpp::Publisher<DeltaJoints>::SharedPtr joint_pub;
+  rclcpp::Publisher<DeltaJointVels>::SharedPtr joint_vel_pub;
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
   rclcpp::Client<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_client;
@@ -32,6 +34,7 @@ private:
   rclcpp::Client<DeltaFK>::SharedPtr delta_fk_client;
 
   void publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms = 50);
+  void publishMotorVelocityCommands(const std::vector<DeltaJointVels>& joint_vel_traj, const unsigned int delay_ms = 50);
 
   void moveToPoint(const Point& point);
   void moveToConfiguration(const DeltaJoints& joints);
@@ -41,6 +44,8 @@ private:
   
   std::vector<Point> straightUpDownTrajectory();
   std::vector<Point> pringleTrajectory();
+  std::vector<Point> axesTrajectory();
+  std::vector<Point> circleTrajectory();
 };
 
 #endif // !DELTA_MOTION_PLANNER_HPP_

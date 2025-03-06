@@ -19,8 +19,10 @@ using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
 using Point = geometry_msgs::msg::Point;
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
+using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
 using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTrajectory;
+using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVelTrajectory;
 
 DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   RCLCPP_INFO(get_logger(), "DeltaMotionPlanner node started");
@@ -67,6 +69,14 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
   // Publish the joint trajectory to the motors with a small delay [ms] between each point
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
     this->joint_pub->publish(joint_traj[i]);
+    rclcpp::sleep_for(std::chrono::milliseconds(delay_ms));
+  }
+}
+
+void DeltaMotionPlanner::publishMotorVelocityCommands(const std::vector<DeltaJointVels>& joint_vel_traj, const unsigned int delay_ms) {
+  // Publish the joint velocity trajectory to the motors with a small delay [ms] between each point
+  for (unsigned int i = 0; i < joint_vel_traj.size(); i++) {
+    this->joint_vel_pub->publish(joint_vel_traj[i]);
     rclcpp::sleep_for(std::chrono::milliseconds(delay_ms));
   }
 }
@@ -124,7 +134,10 @@ void DeltaMotionPlanner::playDemoTrajectory(
     trajectory = this->straightUpDownTrajectory();
   } else if (type == "pringle") {
     trajectory = this->pringleTrajectory();
-  } else {
+  } else if (type == "axes") {
+    trajectory = this->axesTrajectory();
+  }
+  else {
     const std::vector<std::string> available_demos = {"up_down", "pringle"};
     RCLCPP_ERROR(get_logger(), "Invalid demo trajectory: %s", type.c_str());
     RCLCPP_ERROR(get_logger(), "Available demo trajectories: %s", std::accumulate(
@@ -135,33 +148,62 @@ void DeltaMotionPlanner::playDemoTrajectory(
     return;
   }
 
-  // Create a request for the convert_to_joint_trajectory service
-  auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
-  convert_request->end_effector_trajectory = trajectory;
+  // Create either a position or velocity joint trajectory
+  if (!request->velocity_control) {
+    // Create a joint trajectory using the convert_to_joint_trajectory service
+    auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
+    convert_request->end_effector_trajectory = trajectory;
 
-  auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-  // Call the convert_to_joint_trajectory service
-  // ---------- BEGIN_CITATION [1] ----------
-  auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
-    convert_request,
-    [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
-    auto response = future.get();
-    // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_trajectory service");
-    *joint_traj = response->joint_trajectory;
+    auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
+    // Call the convert_to_joint_trajectory service
+    // ---------- BEGIN_CITATION [1] ----------
+    auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
+      convert_request,
+      [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
+      auto response = future.get();
+      // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_trajectory service");
+      *joint_traj = response->joint_trajectory;
 
-    // Print the joint trajectory
-    RCLCPP_INFO(get_logger(), "Joint trajectory created with %ld points:", joint_traj->size());
-    // for (unsigned int i = 0; i < joint_traj->size(); i++) {
-    //   const auto& joints = joint_traj->at(i);
-    //   RCLCPP_INFO(get_logger(), "\t Joint Angles %d: (%.2f, %.2f, %.2f) [rad]", i + 1, joints.theta1, joints.theta2, joints.theta3);
-    // }
+      // Print the joint trajectory
+      RCLCPP_INFO(get_logger(), "Joint trajectory created with %ld points:", joint_traj->size());
+      // for (unsigned int i = 0; i < joint_traj->size(); i++) {
+      //   const auto& joints = joint_traj->at(i);
+      //   RCLCPP_INFO(get_logger(), "\t Joint Angles %d: (%.2f, %.2f, %.2f) [rad]", i + 1, joints.theta1, joints.theta2, joints.theta3);
+      // }
 
-    RCLCPP_INFO(get_logger(), "Publishing joint trajectory to motors");
-    // Publish the joint trajectory to the motors with a 50ms delay between each point
-    this->publishMotorCommands(*joint_traj, 50);
+      RCLCPP_INFO(get_logger(), "Publishing joint trajectory to motors");
+      // Publish the joint trajectory to the motors with a 50ms delay between each point
+      this->publishMotorCommands(*joint_traj, 50);
+    }
+    );
+    // ---------- END_CITATION [1] ----------
+  } else {
+    // Create a joint velocity trajectory using the convert_to_joint_vel_trajectory service
+    auto convert_vel_request = std::make_shared<ConvertToJointVelTrajectory::Request>();
+    convert_vel_request->end_effector_trajectory = trajectory;
+
+    auto joint_vel_traj = std::make_shared<std::vector<DeltaJointVels>>();
+    // Call the convert_to_joint_vel_trajectory service
+    auto future_result = this->convert_to_joint_vel_trajectory_client->async_send_request(
+      convert_vel_request,
+      [this, joint_vel_traj](ServiceResponseFuture<ConvertToJointVelTrajectory> future) {
+      auto response = future.get();
+      // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_vel_trajectory service");
+      *joint_vel_traj = response->joint_vel_trajectory;
+
+      // Print the joint velocity trajectory
+      RCLCPP_INFO(get_logger(), "Joint velocity trajectory created with %ld points:", joint_vel_traj->size());
+      // for (unsigned int i = 0; i < joint_vel_traj->size(); i++) {
+      //   const auto& joint_vels = joint_vel_traj->at(i);
+      //   RCLCPP_INFO(get_logger(), "\t Joint Velocities %d: (%.2f, %.2f, %.2f) [rad/s]", i + 1, joint_vels.theta1_vel, joint_vels.theta2_vel, joint_vels.theta3_vel);
+      // }
+
+      RCLCPP_INFO(get_logger(), "Publishing joint velocity trajectory to motors");
+      // Publish the joint velocity trajectory to the motors with a 50ms delay between each point
+      this->publishMotorVelocityCommands(*joint_vel_traj, 50);
+    }
+    );
   }
-  );
-  // ---------- END_CITATION [1] ----------
 
   // Signal success
   response->success = true;
@@ -215,6 +257,119 @@ std::vector<Point> DeltaMotionPlanner::pringleTrajectory() {
     x_circle[i] = (2.0 * amplitude) * cos(t[i]);
     y_circle[i] = (2.0 * amplitude) * sin(t[i]);
     z_circle[i] = circle_center_z + amplitude * sin(2 * t[i]);
+  }
+
+  // Create trajectory
+  std::vector<Point> trajectory(num_points);
+  for (int i = 0; i < num_points; ++i) {
+    trajectory[i].x = x_circle[i];
+    trajectory[i].y = y_circle[i];
+    trajectory[i].z = z_circle[i];
+  }
+
+  // Log the created trajectory
+  RCLCPP_INFO(get_logger(), "EE Trajectory created with %ld points:", trajectory.size());
+  // for (int i = 0; i < num_points; i++) {
+  //   Point p = trajectory[i];
+  //   RCLCPP_INFO(get_logger(), "\t EE Point %d: (%.2f, %.2f, %.2f)", i + 1, p.x, p.y, p.z);
+  // }
+
+  return trajectory;
+}
+
+std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
+  // Trajectory showcasing the DOF of the DeltaRobot
+  // Path will be a translation along X axis, then Y axis, then Z axis
+
+  std::vector<Point> trajectory;
+
+  const float x_start = 0.0;
+  const float x_end = 80.0;
+  const float y_start = 0.0;
+  const float y_end = 80.0;
+  const float z_start = -180.0;
+  const float z_end = -220.0;
+
+  // X Axis Translation from (0, 0, -180) to (80, 0, -180)
+  for (int i = x_start; i <= x_end; i++) {
+    Point p;
+    p.x = i;
+    p.y = y_start;
+    p.z = -z_start;
+    trajectory.push_back(p);
+  }
+  // Travel back to the starting point
+  for (int i = x_end; i >= x_start; i--) {
+    Point p;
+    p.x = i;
+    p.y = y_start;
+    p.z = -z_start;
+    trajectory.push_back(p);
+  }
+
+  // Y Axis translation from (0, 0, -180) to (0, 80, -180)
+  for (int i = y_start; i <= y_end; i++) {
+    Point p;
+    p.x = x_start;
+    p.y = i;
+    p.z = -z_start;
+    trajectory.push_back(p);
+  }
+  // Travel back to the starting point
+  for (int i = y_end; i >= y_start; i--) {
+    Point p;
+    p.x = x_start;
+    p.y = i;
+    p.z = -z_start;
+    trajectory.push_back(p);
+  }
+
+  // Z Axis translation from (0, 0, -180) to (0, 0, -220)
+  for (int i = z_start; i >= z_end; i--) {
+    Point p;
+    p.x = x_start;
+    p.y = y_start;
+    p.z = -i;
+    trajectory.push_back(p);
+  }
+  // Travel back to the starting point
+  for (int i = z_end; i <= z_start; i++) {
+    Point p;
+    p.x = x_start;
+    p.y = y_start;
+    p.z = -i;
+    trajectory.push_back(p);
+  }
+
+  // Log the created trajectory
+  RCLCPP_INFO(get_logger(), "EE Trajectory created with %ld points:", trajectory.size());
+  // for (int i = 0; i < trajectory.size(); i++) {
+  //   Point p = trajectory[i];
+  //   RCLCPP_INFO(get_logger(), "\t EE Point %d: (%.2f, %.2f, %.2f)", i + 1, p.x, p.y, p.z);
+  // }
+
+  return trajectory;
+}
+
+std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
+  // Circle Trajectory in XY plane while Z coordinate remains constant
+  const int num_points = 200;
+  const float center_z = -180.0;
+  const float radius = 40.0;
+
+  std::vector<float> t(num_points);
+  float step = (2 * M_PI) / (num_points - 1);
+  for (int i = 0; i < num_points; ++i) {
+    t[i] = i * step;
+  }
+
+  std::vector<float> x_circle(num_points);
+  std::vector<float> y_circle(num_points);
+  std::vector<float> z_circle(num_points);
+  for (int i = 0; i < num_points; ++i) {
+    x_circle[i] = radius * cos(t[i]);
+    y_circle[i] = radius * sin(t[i]);
+    z_circle[i] = center_z;
   }
 
   // Create trajectory
