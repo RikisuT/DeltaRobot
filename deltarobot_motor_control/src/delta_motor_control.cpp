@@ -10,7 +10,8 @@
 #define ADDR_LED 65
 
 // 3 is for Position Control Mode, 1 is for Velocity Control Mode
-#define OPR_MODE 3  
+#define POSITION_CTRL 3  
+#define VELOCITY_CTRL 1
 
 // Protocol version
 #define PROTOCOL_VERSION 2.0  // Default Protocol version of DYNAMIXEL X series.
@@ -50,6 +51,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
     QOS_RKL10V,
     [this](const DeltaJoints::SharedPtr msg) -> void
   {
+    if (this->getControlMode() != POSITION_CTRL) { this->setControlMode(POSITION_CTRL); }
     std::array<uint32_t, 3> motor_positions = {
       convertToMotorPosition(msg->theta1),
       convertToMotorPosition(msg->theta2),
@@ -95,11 +97,19 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
     QOS_RKL10V,
     [this](const DeltaJointVels::SharedPtr msg) -> void
   {
-    std::array<uint32_t, 3> motor_vels = {
+    if (this->getControlMode() != VELOCITY_CTRL) { this->setControlMode(VELOCITY_CTRL); }
+    std::array<int, 3> motor_vels = {
       this->convertToMotorVelocity(msg->theta1_vel),
       this->convertToMotorVelocity(msg->theta2_vel),
       this->convertToMotorVelocity(msg->theta3_vel)
     };
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Motor Velocities Set: (%d, %d, %d) [rev/min]",
+      motor_vels[0],
+      motor_vels[1],
+      motor_vels[2]
+    );
 
     // Clear the groupSyncWrite data
     this->groupSyncWrite->clearParam();
@@ -121,6 +131,29 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
     // Transmit all velocity commands at once
     int dxl_comm_result = this->groupSyncWrite->txPacket();
+    if (dxl_comm_result != COMM_SUCCESS) {
+      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
+    }
+
+    /**
+     * Manually publish zero velocity afterwards to stop the motors
+     */
+    this->groupSyncWrite->clearParam();
+    for (uint8_t i = 0; i < 3; i++) {
+      // Create parameter for GroupSyncWrite
+      uint8_t param_goal_velocity[4];
+      param_goal_velocity[0] = DXL_LOBYTE(DXL_LOWORD(0));
+      param_goal_velocity[1] = DXL_HIBYTE(DXL_LOWORD(0));
+      param_goal_velocity[2] = DXL_LOBYTE(DXL_HIWORD(0));
+      param_goal_velocity[3] = DXL_HIBYTE(DXL_HIWORD(0));
+
+      if (!this->groupSyncWrite->addParam(i + 1, param_goal_velocity)) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
+      }
+    }
+
+    // Transmit the stop command
+    dxl_comm_result = this->groupSyncWrite->txPacket();
     if (dxl_comm_result != COMM_SUCCESS) {
       RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
     }
@@ -220,6 +253,26 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   );
 }
 
+uint8_t DeltaMotorControl::getControlMode() { return this->control_mode; }
+
+void DeltaMotorControl::setControlMode(uint8_t ctrl_mode) {
+  uint8_t dxl_error = 0;
+  int dxl_comm_result = this->packetHandler->write1ByteTxRx(
+    this->portHandler,
+    BROADCAST_ID,
+    ADDR_OPERATING_MODE,
+    ctrl_mode,
+    &dxl_error
+  );
+
+  if (dxl_comm_result != COMM_SUCCESS) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set Operating Mode: %d", dxl_error);
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Succeeded to set Operating Mode (%s)", (ctrl_mode == POSITION_CTRL) ? "Position Control" : "Velocity Control");
+  }
+  this->control_mode = ctrl_mode;
+}
+
 void DeltaMotorControl::initializeDynamixels() {
   int dxl_comm_result = COMM_TX_FAIL;
   uint8_t dxl_error = 0;
@@ -239,19 +292,7 @@ void DeltaMotorControl::initializeDynamixels() {
   }
 
   // Set Control Mode
-  dxl_comm_result = this->packetHandler->write1ByteTxRx(
-    this->portHandler,
-    BROADCAST_ID,
-    ADDR_OPERATING_MODE,
-    OPR_MODE, // 3 is for Position Control Mode, 1 is for Velocity Control Mode
-    &dxl_error
-  );
-
-  if (dxl_comm_result != COMM_SUCCESS) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to set Operating Mode.");
-  } else {
-    RCLCPP_INFO(this->get_logger(), "Succeeded to set Operating Mode (%s)", (OPR_MODE == 3) ? "Position Control" : "Velocity Control");
-  }
+  this->setControlMode(POSITION_CTRL);
 
   // Enable Torque of DYNAMIXEL
   dxl_comm_result = this->packetHandler->write1ByteTxRx(
@@ -293,10 +334,10 @@ uint32_t DeltaMotorControl::convertToMotorPosition(float theta) {
   return static_cast<uint32_t>(motor_pos);
 }
 
-uint32_t DeltaMotorControl::convertToMotorVelocity(float theta_vel) {
+int DeltaMotorControl::convertToMotorVelocity(float theta_vel) {
   // Convert theta_vel [rad/s] to motor velocity [rev/min]
   float motor_vel = RAD_S_TO_REV_MIN * theta_vel;
-  return static_cast<uint32_t>(motor_vel);
+  return static_cast<int>(motor_vel);
 }
 
 int main(int argc, char* argv[]) {

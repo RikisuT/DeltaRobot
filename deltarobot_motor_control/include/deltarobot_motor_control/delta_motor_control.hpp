@@ -34,10 +34,14 @@ private:
   dynamixel::PacketHandler* packetHandler;
   dynamixel::GroupSyncWrite* groupSyncWrite;
 
+  uint8_t control_mode;
+  uint8_t getControlMode();
+  void setControlMode(uint8_t ctrl_mode);
+
   void initializeDynamixels();
 
   uint32_t convertToMotorPosition(float theta);
-  uint32_t convertToMotorVelocity(float theta_vel);
+  int convertToMotorVelocity(float theta_vel);
 };
 
 #endif  // DELTA_MOTOR_CONTROL_HPP_
