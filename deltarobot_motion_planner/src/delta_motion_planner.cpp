@@ -32,7 +32,9 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     std::bind(&DeltaMotionPlanner::playDemoTrajectory, this, std::placeholders::_1, std::placeholders::_2)
   );
 
-  this->joint_pub = this->create_publisher<DeltaJoints>("set_joints", 10);
+  const auto QOS_RKL10V = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
+  this->joint_pub = this->create_publisher<DeltaJoints>("set_joints", QOS_RKL10V);
+  this->joint_vel_pub = this->create_publisher<DeltaJointVels>("set_joint_vels", QOS_RKL10V);
 
   this->delta_ik_client = create_client<DeltaIK>("delta_ik");
   // Wait until service is ready
@@ -89,15 +91,15 @@ void DeltaMotionPlanner::moveToPoint(const Point& point) {
   auto future_result = this->delta_ik_client->async_send_request(
     ik_request,
     [this](ServiceResponseFuture<DeltaIK> future) {
-      auto response = future.get();
-      if (response->success) {
-        // If the IK solution is valid, move to the point
-        std::vector<DeltaJoints> joint_traj = {response->joint_angles};
-        this->publishMotorCommands(joint_traj, 0);
-      } else {
-        RCLCPP_ERROR(get_logger(), "IK solution not found for the given end effector point");
-      }
+    auto response = future.get();
+    if (response->success) {
+      // If the IK solution is valid, move to the point
+      std::vector<DeltaJoints> joint_traj = {response->joint_angles};
+      this->publishMotorCommands(joint_traj, 0);
+    } else {
+      RCLCPP_ERROR(get_logger(), "IK solution not found for the given end effector point");
     }
+  }
   );
 }
 
@@ -109,20 +111,21 @@ void DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints) {
   auto future_result = this->delta_fk_client->async_send_request(
     fk_request,
     [this, joints](ServiceResponseFuture<DeltaFK> future) {
-      auto response = future.get();
-      if (response->success) {
-        // If the FK solution is valid, move to the configuration
-        std::vector<DeltaJoints> joint_traj = {joints};
-        this->publishMotorCommands(joint_traj, 0);
-      } else {
-        RCLCPP_ERROR(get_logger(), "FK solution not found for the given joint angles");
-      }
+    auto response = future.get();
+    if (response->success) {
+      // If the FK solution is valid, move to the configuration
+      std::vector<DeltaJoints> joint_traj = {joints};
+      this->publishMotorCommands(joint_traj, 0);
+    } else {
+      RCLCPP_ERROR(get_logger(), "FK solution not found for the given joint angles");
     }
+  }
   );
 }
 
 void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
   // Plan a continuous trajectory through the given points using 3rd order polynomial interpolation
+  (void)points;
 }
 
 void DeltaMotionPlanner::playDemoTrajectory(
@@ -130,15 +133,16 @@ void DeltaMotionPlanner::playDemoTrajectory(
 
   std::string type = request->type.data;
   std::vector<Point> trajectory;
+  const std::vector<std::string> available_demos = {"up_down", "pringle", "axes", "circle"};
   if (type == "up_down") {
     trajectory = this->straightUpDownTrajectory();
   } else if (type == "pringle") {
     trajectory = this->pringleTrajectory();
   } else if (type == "axes") {
     trajectory = this->axesTrajectory();
-  }
-  else {
-    const std::vector<std::string> available_demos = {"up_down", "pringle"};
+  } else if (type == "circle") {
+    trajectory = this->circleTrajectory();
+  } else {
     RCLCPP_ERROR(get_logger(), "Invalid demo trajectory: %s", type.c_str());
     RCLCPP_ERROR(get_logger(), "Available demo trajectories: %s", std::accumulate(
       std::next(available_demos.begin()), available_demos.end(), available_demos[0],
@@ -147,6 +151,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
     response->success = false;
     return;
   }
+  RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s (%s control)", type.c_str(), request->velocity_control ? "velocity" : "position");
 
   // Create either a position or velocity joint trajectory
   if (!request->velocity_control) {
@@ -188,7 +193,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
       convert_vel_request,
       [this, joint_vel_traj](ServiceResponseFuture<ConvertToJointVelTrajectory> future) {
       auto response = future.get();
-      // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_vel_trajectory service");
+      RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_vel_trajectory service");
       *joint_vel_traj = response->joint_vel_trajectory;
 
       // Print the joint velocity trajectory

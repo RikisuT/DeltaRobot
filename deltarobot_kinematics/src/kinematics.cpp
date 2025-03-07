@@ -18,8 +18,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/node_options.hpp"
 #include "geometry_msgs/msg/point.hpp"
-#include "deltarobot_interfaces/msg/delta_joints.hpp"
-#include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "kinematics.hpp"
 #include <vector>
 #include <math.h>
@@ -32,6 +30,10 @@ const float tan60 = sqrt3;
 constexpr float sin30 = 0.5;
 const float tan30 = 1 / sqrt3;
 
+using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
+using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
+using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTrajectory;
+using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVelTrajectory;
 using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
@@ -147,10 +149,9 @@ void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertT
   if (N == 0 || N == 1) return;
   // Create a time vector from 0 to 1 with equal intervals
   double dt = 1.0 / (N - 1);
-
   // Compute end effector velocities over the reference trajectory using gradient
   std::vector<EEVelocity> ee_vel = this->computeGradient(ref_traj, dt);
-
+  RCLCPP_INFO(this->get_logger(), "Computed Gradient");
   // Iterate through the trajectory and convert each point to joint angles
   for (size_t i = 0; i < ref_traj.size(); ++i) {
     Point p = ref_traj[i]; // End effector position
@@ -158,6 +159,7 @@ void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertT
     EEVelocity v = ee_vel[i]; // End effector velocity
     joint_velocities.push_back(this->calcThetaDot(joints.theta1, joints.theta2, joints.theta3, v.x_vel, v.y_vel, v.z_vel));
   }
+  RCLCPP_INFO(this->get_logger(), "Created Joint Velocity Trajectory");
 
   // Update the response data (joint velocity trajectory)
   response->joint_vel_trajectory = joint_velocities;

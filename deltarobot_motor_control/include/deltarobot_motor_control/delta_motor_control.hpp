@@ -24,18 +24,18 @@ public:
   DeltaMotorControl();
   ~DeltaMotorControl() = default;
 
-  private:
+private:
   rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub;
   rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub;
   rclcpp::Service<GetPositions>::SharedPtr get_positions_server;
   rclcpp::Service<GetVelocities>::SharedPtr get_velocities_server;
-  
+
   dynamixel::PortHandler* portHandler;
   dynamixel::PacketHandler* packetHandler;
   dynamixel::GroupSyncWrite* groupSyncWrite;
 
   void initializeDynamixels();
-  
+
   uint32_t convertToMotorPosition(float theta);
   uint32_t convertToMotorVelocity(float theta_vel);
 };

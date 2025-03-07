@@ -4,6 +4,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "deltarobot_interfaces/srv/delta_fk.hpp"
 #include "deltarobot_interfaces/srv/delta_ik.hpp"
+#include "deltarobot_interfaces/msg/delta_joints.hpp"
+#include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -35,7 +37,7 @@ private:
   rclcpp::Service<DeltaIK>::SharedPtr delta_ik_server;
   rclcpp::Service<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_server;
   rclcpp::Service<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_server;
-  
+
   // Service Callbacks
   void forwardKinematics(const std::shared_ptr<DeltaFK::Request> request, std::shared_ptr<DeltaFK::Response> response);
   void inverseKinematics(const std::shared_ptr<DeltaIK::Request> request, std::shared_ptr<DeltaIK::Response> response);
@@ -54,7 +56,7 @@ private:
   DeltaJointVels calcThetaDot(double theta1, double theta2, double theta3, double x_dot, double y_dot, double z_dot);
   // Helper functions for computing end-effector velocity
   std::vector<EEVelocity> computeGradient(const std::vector<Point>& position_data, double dt);
-  
+
   /// @brief Base Triangle Side Length [mm]
   float SB;
 
@@ -77,7 +79,7 @@ private:
   float JMax;
 
   /// @brief Phi Angles [rad]
-  const float phi[3] = { -M_PI_2, M_PI / 6.0, (5.0 * M_PI) / 6.0 };
+  const float phi[3] = {-M_PI_2, M_PI / 6.0, (5.0 * M_PI) / 6.0};
 };
 
 #endif  // KINEMATICS_HPP_

@@ -9,6 +9,9 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(deltarobot_interfaces REQUIRED)
+find_package(deltarobot_trajectory_generator REQUIRED)
+find_package(deltarobot_kinematics REQUIRED)
+find_package(deltarobot_motor_control REQUIRED)
 find_package(kalman_filter REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
@@ -19,7 +22,7 @@ include_directories(
 
 # Delta Testing Node
 add_executable(delta_motion_planner src/delta_motion_planner.cpp)
-ament_target_dependencies(delta_motion_planner rclcpp deltarobot_interfaces geometry_msgs)
+ament_target_dependencies(delta_motion_planner rclcpp geometry_msgs deltarobot_interfaces deltarobot_trajectory_generator deltarobot_kinematics deltarobot_motor_control kalman_filter)
 target_link_libraries(delta_motion_planner ${deltarobot_interfaces_LIBRARIES})
 
 # Install
