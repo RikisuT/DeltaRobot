@@ -243,6 +243,11 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
       }
     }
 
+    // Convert velocities from dynamixel units to rev/min
+    for (uint8_t i = 0; i < motor_velocities.size(); i++) {
+      motor_velocities[i] = motor_velocities[i] * VEL_UNIT;
+    }
+
     RCLCPP_INFO(
       this->get_logger(),
       "Motor Velocities: (%d, %d, %d) [rev/min]",
