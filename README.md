@@ -7,8 +7,11 @@ Author: Sharwin Patil (*2025 MSR Winter Project*)
 
 # ROS Package Structure
 
+## Motion Planner
+The `deltarobot_motion_planner` package contains movement functions and is the top-level package to **launch the entire project**. Pre-programmed position and velocity trajectories are built in for running movement demos.
+
 ## Trajectory Generator
-The `deltarobot_control` package is responsible for generating trajectories for the robot to follow. Currently, some hardcoded trajectories are baked into the package, but the package will be extended to offer parametric trajectory generation, resulting in position-velocity trajectories.
+The `deltarobot_trajectory_generator` package is responsible for generating trajectories for the robot to follow. Currently, some hardcoded trajectories are baked into the package, but the package will be extended to offer parametric trajectory generation, resulting in position-velocity trajectories.
 
 ## Kinematics Solver
 The `deltarobot_kinematics` package enables several kinematic capabilities for any delta robot. The package accepts a config file that specifies the robot's geometry, link lengths, and joint limits. Forward and Inverse Kinematics are implemented here as well as the Jacobian for creating joint-velocity trajectories from position trajectories.
