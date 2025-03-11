@@ -9,28 +9,39 @@
 #include "rcutils/cmdline_parser.h"
 #include "dynamixel_sdk/dynamixel_sdk.h"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
+#include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
+#include "deltarobot_interfaces/srv/get_dynamixel_velocities.hpp"
 
+using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
+using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
+using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
+using GetVelocities = deltarobot_interfaces::srv::GetDynamixelVelocities;
 
 class DeltaMotorControl : public rclcpp::Node {
 public:
-  using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
-  using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
 
   DeltaMotorControl();
   ~DeltaMotorControl() = default;
 
-  private:
+private:
   rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub;
+  rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub;
   rclcpp::Service<GetPositions>::SharedPtr get_positions_server;
-  
+  rclcpp::Service<GetVelocities>::SharedPtr get_velocities_server;
+
   dynamixel::PortHandler* portHandler;
   dynamixel::PacketHandler* packetHandler;
   dynamixel::GroupSyncWrite* groupSyncWrite;
 
+  uint8_t control_mode;
+  uint8_t getControlMode();
+  void setControlMode(uint8_t ctrl_mode);
+
   void initializeDynamixels();
-  
+
   uint32_t convertToMotorPosition(float theta);
+  int convertToMotorVelocity(float theta_vel);
 };
 
 #endif  // DELTA_MOTOR_CONTROL_HPP_

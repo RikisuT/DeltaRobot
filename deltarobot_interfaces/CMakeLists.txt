@@ -34,15 +34,18 @@ endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DeltaJoints.msg"
+  "msg/DeltaJointVels.msg"
   "msg/FKTrajectory.msg"
   "msg/IKTrajectory.msg"
   "srv/DeltaFK.srv"
   "srv/DeltaIK.srv"
   "srv/GetDynamixelPositions.srv"
+  "srv/GetDynamixelVelocities.srv"
   "srv/PlayFKTrajectory.srv"
   "srv/PlayIKTrajectory.srv"
   "srv/PlayDemoTrajectory.srv"
   "srv/ConvertToJointTrajectory.srv"
+  "srv/ConvertToJointVelTrajectory.srv"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 

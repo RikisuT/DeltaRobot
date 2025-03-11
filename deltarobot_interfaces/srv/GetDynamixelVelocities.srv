@@ -1,0 +1,5 @@
+std_msgs/Empty request
+---
+int32 motor1_velocity # [rev/min]
+int32 motor2_velocity # [rev/min]
+int32 motor3_velocity # [rev/min]

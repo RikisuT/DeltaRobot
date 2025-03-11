@@ -1,3 +1,4 @@
 std_msgs/String type
+bool velocity_control
 ---
 bool success
