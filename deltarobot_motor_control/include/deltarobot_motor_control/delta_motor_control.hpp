@@ -12,33 +12,39 @@
 #include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
 #include "deltarobot_interfaces/srv/get_dynamixel_velocities.hpp"
+#include "deltarobot_interfaces/srv/set_joint_limits.hpp"
 
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
 using GetVelocities = deltarobot_interfaces::srv::GetDynamixelVelocities;
+using SetJointLimits = deltarobot_interfaces::srv::SetJointLimits;
 
 class DeltaMotorControl : public rclcpp::Node {
 public:
 
   DeltaMotorControl();
-  ~DeltaMotorControl() = default;
+  ~DeltaMotorControl();
 
 private:
   rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub;
   rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub;
   rclcpp::Service<GetPositions>::SharedPtr get_positions_server;
   rclcpp::Service<GetVelocities>::SharedPtr get_velocities_server;
+  rclcpp::Service<SetJointLimits>::SharedPtr set_joint_limits_server;
 
   dynamixel::PortHandler* portHandler;
   dynamixel::PacketHandler* packetHandler;
   dynamixel::GroupSyncWrite* groupSyncWrite;
 
   uint8_t control_mode;
-  uint8_t getControlMode();
+  uint8_t getControlMode() { return this->control_mode; }
   void setControlMode(uint8_t ctrl_mode);
 
   void initializeDynamixels();
+
+  void disableTorque();
+  void enableTorque();
 
   uint32_t convertToMotorPosition(float theta);
   int convertToMotorVelocity(float theta_vel);

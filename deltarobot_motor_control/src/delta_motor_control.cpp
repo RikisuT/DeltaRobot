@@ -7,6 +7,7 @@
 #define ADDR_PRESENT_POSITION 132
 #define ADDR_GOAL_VELOCITY 104
 #define ADDR_PRESENT_VELOCITY 128
+#define ADDR_VELOCITY_LIMIT 44
 #define ADDR_LED 65
 
 // 3 is for Position Control Mode, 1 is for Velocity Control Mode
@@ -28,6 +29,8 @@
 
 // Converting from rad/s to rev/min
 #define RAD_S_TO_REV_MIN (60.0f * (1.0f / (2.0f * M_PI)))
+// The velocity limit range is (0 ~ 1023) where each unit is 0.229 rev/min
+#define VEL_UNIT 0.229f // [rev/min] 
 
 DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   RCLCPP_INFO(this->get_logger(), "DeltaMotorControl Started");
@@ -251,13 +254,116 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
     response->motor3_velocity = motor_velocities[2];
   }
   );
+
+  // Service to set the joint limits
+  this->set_joint_limits_server = create_service<SetJointLimits>(
+    "set_joint_limits",
+    [this](
+      const std::shared_ptr<SetJointLimits::Request> request,
+      std::shared_ptr<SetJointLimits::Response> response) -> void
+  {
+    // Convert request data into motor position and velocity values
+    uint32_t motor_min = this->convertToMotorPosition(request->min_rad);
+    uint32_t motor_max = this->convertToMotorPosition(request->max_rad);
+    int max_vel = this->convertToMotorVelocity(request->max_rad);
+    int dxl_comm_result = COMM_TX_FAIL;
+        
+    // Set Position Limits
+    this->groupSyncWrite->clearParam();
+    for (uint8_t i = 1; i <= 3; i++) {
+      uint8_t param_goal_position[4];
+      param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(motor_min));
+      param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(motor_min));
+      param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(motor_min));
+      param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(motor_min));
+
+      if (!this->groupSyncWrite->addParam(i, param_goal_position)) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
+      }
+    }
+
+    // Transmit the min position to all motors
+    dxl_comm_result = this->groupSyncWrite->txPacket();
+
+    if (dxl_comm_result != COMM_SUCCESS) {
+      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Succeeded to set Min Position: %f [rad]", request->min_rad);
+    }
+
+    this->groupSyncWrite->clearParam();
+    for (uint8_t i = 1; i <= 3; i++) {
+      uint8_t param_goal_position[4];
+      param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(motor_max));
+      param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(motor_max));
+      param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(motor_max));
+      param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(motor_max));
+
+      if (!this->groupSyncWrite->addParam(i, param_goal_position)) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
+      }
+    }
+
+    // Transmit the max position to all motors
+    dxl_comm_result = this->groupSyncWrite->txPacket();
+
+    if (dxl_comm_result != COMM_SUCCESS) {
+      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Succeeded to set Max Position: %f [rad]", request->max_rad);
+    }
+
+    // Set Velocity Limit, 
+    uint8_t param_velocity_limit[4];
+    param_velocity_limit[0] = DXL_LOBYTE(DXL_LOWORD(max_vel));
+    param_velocity_limit[1] = DXL_HIBYTE(DXL_LOWORD(max_vel));
+    param_velocity_limit[2] = DXL_LOBYTE(DXL_HIWORD(max_vel));
+    param_velocity_limit[3] = DXL_HIBYTE(DXL_HIWORD(max_vel));
+
+    this->groupSyncWrite->clearParam();
+    for (uint8_t i = 1; i <= 3; i++) {
+      if (!this->groupSyncWrite->addParam(i, param_velocity_limit)) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
+      }
+    }
+
+    // Transmit the velocity limit to all motors
+    dxl_comm_result = this->groupSyncWrite->txPacket();
+    if (dxl_comm_result != COMM_SUCCESS) {
+      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Succeeded to set Velocity Limit: %d [rev/min]", max_vel);
+    }
+
+    response->success = true;
+  }
+  );
 }
 
-uint8_t DeltaMotorControl::getControlMode() { return this->control_mode; }
+DeltaMotorControl::~DeltaMotorControl() {
+  this->disableTorque();
+  // Turn off the LED
+  uint8_t dxl_error = 0;
+  this->packetHandler->write1ByteTxRx(
+    this->portHandler,
+    BROADCAST_ID,
+    ADDR_LED,
+    0,
+    &dxl_error
+  );
+  this->portHandler->closePort();
+  delete this->portHandler;
+  delete this->packetHandler;
+  delete this->groupSyncWrite;
+
+}
 
 void DeltaMotorControl::setControlMode(uint8_t ctrl_mode) {
   uint8_t dxl_error = 0;
-  int dxl_comm_result = this->packetHandler->write1ByteTxRx(
+  int dxl_comm_result = COMM_TX_FAIL;
+
+  // Set the Operating Mode
+  dxl_comm_result = this->packetHandler->write1ByteTxRx(
     this->portHandler,
     BROADCAST_ID,
     ADDR_OPERATING_MODE,
@@ -270,6 +376,8 @@ void DeltaMotorControl::setControlMode(uint8_t ctrl_mode) {
   } else {
     RCLCPP_INFO(this->get_logger(), "Succeeded to set Operating Mode (%s)", (ctrl_mode == POSITION_CTRL) ? "Position Control" : "Velocity Control");
   }
+
+  // Save the control mode
   this->control_mode = ctrl_mode;
 }
 
@@ -291,24 +399,8 @@ void DeltaMotorControl::initializeDynamixels() {
     RCLCPP_ERROR(this->get_logger(), "Failed to set the baudrate!");
   }
 
-  // Set Control Mode
   this->setControlMode(POSITION_CTRL);
-
-  // Enable Torque of DYNAMIXEL
-  dxl_comm_result = this->packetHandler->write1ByteTxRx(
-    this->portHandler,
-    BROADCAST_ID,
-    ADDR_TORQUE_ENABLE,
-    1,
-    &dxl_error
-  );
-
-  if (dxl_comm_result != COMM_SUCCESS) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to enable torque.");
-  } else {
-    RCLCPP_INFO(this->get_logger(), "Succeeded to enable torque.");
-  }
-
+  
   // Set LED of DYNAMIXEL
   dxl_comm_result = this->packetHandler->write1ByteTxRx(
     this->portHandler,
@@ -317,11 +409,49 @@ void DeltaMotorControl::initializeDynamixels() {
     1,
     &dxl_error
   );
-
+  
   if (dxl_comm_result != COMM_SUCCESS) {
     RCLCPP_ERROR(this->get_logger(), "Failed to set LED.");
   } else {
     RCLCPP_INFO(this->get_logger(), "Succeeded to set Motor LED.");
+  }
+
+  this->enableTorque();
+}
+
+void DeltaMotorControl::disableTorque() {
+  uint8_t dxl_error = 0;
+  // Disable the torque before changing the control mode
+  int dxl_comm_result = this->packetHandler->write1ByteTxRx(
+    this->portHandler,
+    BROADCAST_ID,
+    ADDR_TORQUE_ENABLE,
+    0,
+    &dxl_error
+  );
+
+  if (dxl_comm_result != COMM_SUCCESS) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to disable torque: %d", dxl_error);
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Succeeded to disable torque.");
+  }
+}
+
+void DeltaMotorControl::enableTorque() {
+  uint8_t dxl_error = 0;
+  // Enable the torque after changing the control mode
+  int dxl_comm_result = this->packetHandler->write1ByteTxRx(
+    this->portHandler,
+    BROADCAST_ID,
+    ADDR_TORQUE_ENABLE,
+    1,
+    &dxl_error
+  );
+
+  if (dxl_comm_result != COMM_SUCCESS) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to enable torque: %d", dxl_error);
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Succeeded to enable torque.");
   }
 }
 
@@ -336,8 +466,9 @@ uint32_t DeltaMotorControl::convertToMotorPosition(float theta) {
 
 int DeltaMotorControl::convertToMotorVelocity(float theta_vel) {
   // Convert theta_vel [rad/s] to motor velocity [rev/min]
-  float motor_vel = RAD_S_TO_REV_MIN * theta_vel;
-  return static_cast<int>(motor_vel);
+  float rpm = RAD_S_TO_REV_MIN * theta_vel;
+  // Convert motor velocity [rev/min] to the appropriate value
+  return static_cast<int>(rpm / VEL_UNIT);
 }
 
 int main(int argc, char* argv[]) {

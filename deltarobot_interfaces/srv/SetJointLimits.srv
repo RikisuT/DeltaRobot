@@ -1,0 +1,5 @@
+float64 min_rad # The minimum joint angle in radians
+float64 max_rad # The maximum joint angle in radians
+float64 max_vel_rad_s # The maximum joint velocity in radians per second
+---
+bool success # True if the joint limits were set successfully

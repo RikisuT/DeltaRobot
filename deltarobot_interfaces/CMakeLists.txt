@@ -46,6 +46,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/PlayDemoTrajectory.srv"
   "srv/ConvertToJointTrajectory.srv"
   "srv/ConvertToJointVelTrajectory.srv"
+  "srv/SetJointLimits.srv"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 
