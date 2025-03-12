@@ -299,12 +299,12 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
   std::vector<Point> trajectory;
 
   const float x_start = 0.0;
-  const float x_end = 80.0;
+  const float x_end = 60.0;
   const float y_start = 0.0;
-  const float y_end = 80.0;
+  const float y_end = 60.0;
   const float z_start = -180.0;
-  const float z_end = -220.0;
-  const int num_points = 100;
+  const float z_end = -240.0;
+  const int num_points = 25;
 
   // X Axis Translation from (0, 0, -180) to (80, 0, -180)
   for (int i = 0; i < num_points; i++) {
@@ -324,7 +324,7 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
     intermediate_pos.z = z_start;
     trajectory.push_back(intermediate_pos);
   }
-  
+
   // Y Axis translation from (0, 0, -180) to (0, 80, -180)
   for (int i = 0; i < num_points; i++) {
     double t = static_cast<double>(i) / (num_points - 1);
@@ -343,7 +343,7 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
     intermediate_pos.z = z_start;
     trajectory.push_back(intermediate_pos);
   }
-  
+
   // Z Axis translation from (0, 0, -180) to (0, 0, -220)
   for (int i = 0; i < num_points; i++) {
     double t = static_cast<double>(i) / (num_points - 1);
