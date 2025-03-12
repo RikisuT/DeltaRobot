@@ -5,6 +5,8 @@
 #define ADDR_TORQUE_ENABLE 64
 #define ADDR_GOAL_POSITION 116
 #define ADDR_PRESENT_POSITION 132
+#define ADDR_MIN_POSITION_LIMIT 48
+#define ADDR_MAX_POSITION_LIMIT 52
 #define ADDR_GOAL_VELOCITY 104
 #define ADDR_PRESENT_VELOCITY 128
 #define ADDR_VELOCITY_LIMIT 44
@@ -271,76 +273,55 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
     // Convert request data into motor position and velocity values
     uint32_t motor_min = this->convertToMotorPosition(request->min_rad);
     uint32_t motor_max = this->convertToMotorPosition(request->max_rad);
-    int max_vel = this->convertToMotorVelocity(request->max_rad);
+    int max_vel = this->convertToMotorVelocity(request->max_vel_rad_s);
     int dxl_comm_result = COMM_TX_FAIL;
-        
-    // Set Position Limits
-    this->groupSyncWrite->clearParam();
-    for (uint8_t i = 1; i <= 3; i++) {
-      uint8_t param_goal_position[4];
-      param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(motor_min));
-      param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(motor_min));
-      param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(motor_min));
-      param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(motor_min));
 
-      if (!this->groupSyncWrite->addParam(i, param_goal_position)) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
+    this->disableTorque();
+
+    // Set Position Limits on MIN_POSITION_LIMIT and MAX_POSITION_LIMIT
+    // Set Velocity Limit on VELOCITY_LIMIT
+    for (uint8_t i = 1; i <= 3; i++) {
+      uint8_t dxl_error = 0;
+      dxl_comm_result = this->packetHandler->write4ByteTxRx(
+        this->portHandler,
+        i,
+        ADDR_MIN_POSITION_LIMIT,
+        motor_min,
+        &dxl_error
+      );
+      if (dxl_comm_result != COMM_SUCCESS) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to set Min Position Limit: %d", dxl_error);
+      }
+
+      dxl_comm_result = this->packetHandler->write4ByteTxRx(
+        this->portHandler,
+        i,
+        ADDR_MAX_POSITION_LIMIT,
+        motor_max,
+        &dxl_error
+      );
+      if (dxl_comm_result != COMM_SUCCESS) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to set Max Position Limit: %d", dxl_error);
+      }
+
+      dxl_comm_result = this->packetHandler->write4ByteTxRx(
+        this->portHandler,
+        i,
+        ADDR_VELOCITY_LIMIT,
+        max_vel,
+        &dxl_error
+      );
+      if (dxl_comm_result != COMM_SUCCESS) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to set Velocity Limit: %d", dxl_error);
       }
     }
 
-    // Transmit the min position to all motors
-    dxl_comm_result = this->groupSyncWrite->txPacket();
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Joint Limits Set: Position [%f, %f] [rad], Velocity: %.2f [rad/s]", request->min_rad, request->max_rad, request->max_vel_rad_s
+    );
 
-    if (dxl_comm_result != COMM_SUCCESS) {
-      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
-    } else {
-      RCLCPP_INFO(this->get_logger(), "Succeeded to set Min Position: %f [rad]", request->min_rad);
-    }
-
-    this->groupSyncWrite->clearParam();
-    for (uint8_t i = 1; i <= 3; i++) {
-      uint8_t param_goal_position[4];
-      param_goal_position[0] = DXL_LOBYTE(DXL_LOWORD(motor_max));
-      param_goal_position[1] = DXL_HIBYTE(DXL_LOWORD(motor_max));
-      param_goal_position[2] = DXL_LOBYTE(DXL_HIWORD(motor_max));
-      param_goal_position[3] = DXL_HIBYTE(DXL_HIWORD(motor_max));
-
-      if (!this->groupSyncWrite->addParam(i, param_goal_position)) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
-      }
-    }
-
-    // Transmit the max position to all motors
-    dxl_comm_result = this->groupSyncWrite->txPacket();
-
-    if (dxl_comm_result != COMM_SUCCESS) {
-      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
-    } else {
-      RCLCPP_INFO(this->get_logger(), "Succeeded to set Max Position: %f [rad]", request->max_rad);
-    }
-
-    // Set Velocity Limit, 
-    uint8_t param_velocity_limit[4];
-    param_velocity_limit[0] = DXL_LOBYTE(DXL_LOWORD(max_vel));
-    param_velocity_limit[1] = DXL_HIBYTE(DXL_LOWORD(max_vel));
-    param_velocity_limit[2] = DXL_LOBYTE(DXL_HIWORD(max_vel));
-    param_velocity_limit[3] = DXL_HIBYTE(DXL_HIWORD(max_vel));
-
-    this->groupSyncWrite->clearParam();
-    for (uint8_t i = 1; i <= 3; i++) {
-      if (!this->groupSyncWrite->addParam(i, param_velocity_limit)) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to add param to groupSyncWrite");
-      }
-    }
-
-    // Transmit the velocity limit to all motors
-    dxl_comm_result = this->groupSyncWrite->txPacket();
-    if (dxl_comm_result != COMM_SUCCESS) {
-      RCLCPP_ERROR(this->get_logger(), "GroupSyncWrite failed: %s", this->packetHandler->getTxRxResult(dxl_comm_result));
-    } else {
-      RCLCPP_INFO(this->get_logger(), "Succeeded to set Velocity Limit: %d [rev/min]", max_vel);
-    }
-
+    this->enableTorque();
     response->success = true;
   }
   );
@@ -406,7 +387,7 @@ void DeltaMotorControl::initializeDynamixels() {
   }
 
   this->setControlMode(POSITION_CTRL);
-  
+
   // Set LED of DYNAMIXEL
   dxl_comm_result = this->packetHandler->write1ByteTxRx(
     this->portHandler,
@@ -415,7 +396,7 @@ void DeltaMotorControl::initializeDynamixels() {
     1,
     &dxl_error
   );
-  
+
   if (dxl_comm_result != COMM_SUCCESS) {
     RCLCPP_ERROR(this->get_logger(), "Failed to set LED.");
   } else {

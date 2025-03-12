@@ -7,3 +7,4 @@
     passive_link_width: 42.8 # [mm]
     joint_min: 0.174532925199 # [rad] (10 deg)
     joint_max: 1.4835298642 # [rad] (85 deg)
+    max_joint_velocity: 5.0 # [rad/s]

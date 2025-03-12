@@ -8,6 +8,7 @@
 #include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
+#include "deltarobot_interfaces/srv/set_joint_limits.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
 #include <vector>
@@ -17,6 +18,7 @@ using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTrajectory;
 using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVelTrajectory;
+using SetJointLimits = deltarobot_interfaces::srv::SetJointLimits;
 using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
@@ -37,6 +39,7 @@ private:
   rclcpp::Service<DeltaIK>::SharedPtr delta_ik_server;
   rclcpp::Service<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_server;
   rclcpp::Service<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_server;
+  rclcpp::Client<SetJointLimits>::SharedPtr set_joint_limits_client;
 
   // Service Callbacks
   void forwardKinematics(const std::shared_ptr<DeltaFK::Request> request, std::shared_ptr<DeltaFK::Response> response);
@@ -77,6 +80,9 @@ private:
 
   /// @brief Joint Angle Max [rad]
   float JMax;
+
+  /// @brief Maximum Joint Velocity [rad/s]
+  float MaxJointVel;
 
   /// @brief Phi Angles [rad]
   const float phi[3] = {-M_PI_2, M_PI / 6.0, (5.0 * M_PI) / 6.0};
