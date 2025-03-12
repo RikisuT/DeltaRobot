@@ -46,6 +46,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   this->packetHandler = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
   this->groupSyncWrite = new dynamixel::GroupSyncWrite(this->portHandler, this->packetHandler, ADDR_GOAL_POSITION, 4);
 
+  // Initialize the port, baud rate, control mode
   this->initializeDynamixels();
 
   // Subscriber to receive position commands and write them to the motors

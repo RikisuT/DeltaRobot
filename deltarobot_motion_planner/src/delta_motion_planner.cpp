@@ -304,56 +304,63 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
   const float y_end = 80.0;
   const float z_start = -180.0;
   const float z_end = -220.0;
+  const int num_points = 100;
 
   // X Axis Translation from (0, 0, -180) to (80, 0, -180)
-  for (int i = x_start; i <= x_end; i++) {
-    Point p;
-    p.x = i;
-    p.y = y_start;
-    p.z = -z_start;
-    trajectory.push_back(p);
+  for (int i = 0; i < num_points; i++) {
+    double t = static_cast<double>(i) / (num_points - 1);
+    Point intermediate_pos;
+    intermediate_pos.x = x_start + t * (x_end - x_start);
+    intermediate_pos.y = y_start;
+    intermediate_pos.z = z_start;
+    trajectory.push_back(intermediate_pos);
   }
-  // Travel back to the starting point
-  for (int i = x_end; i >= x_start; i--) {
-    Point p;
-    p.x = i;
-    p.y = y_start;
-    p.z = -z_start;
-    trajectory.push_back(p);
+  // Go back to the starting point
+  for (int i = 0; i < num_points; i++) {
+    double t = static_cast<double>(i) / (num_points - 1);
+    Point intermediate_pos;
+    intermediate_pos.x = x_end - t * (x_end - x_start);
+    intermediate_pos.y = y_start;
+    intermediate_pos.z = z_start;
+    trajectory.push_back(intermediate_pos);
   }
-
+  
   // Y Axis translation from (0, 0, -180) to (0, 80, -180)
-  for (int i = y_start; i <= y_end; i++) {
-    Point p;
-    p.x = x_start;
-    p.y = i;
-    p.z = -z_start;
-    trajectory.push_back(p);
+  for (int i = 0; i < num_points; i++) {
+    double t = static_cast<double>(i) / (num_points - 1);
+    Point intermediate_pos;
+    intermediate_pos.x = x_start;
+    intermediate_pos.y = y_start + t * (y_end - y_start);
+    intermediate_pos.z = z_start;
+    trajectory.push_back(intermediate_pos);
   }
-  // Travel back to the starting point
-  for (int i = y_end; i >= y_start; i--) {
-    Point p;
-    p.x = x_start;
-    p.y = i;
-    p.z = -z_start;
-    trajectory.push_back(p);
+  // Go back to the starting point
+  for (int i = 0; i < num_points; i++) {
+    double t = static_cast<double>(i) / (num_points - 1);
+    Point intermediate_pos;
+    intermediate_pos.x = x_start;
+    intermediate_pos.y = y_end - t * (y_end - y_start);
+    intermediate_pos.z = z_start;
+    trajectory.push_back(intermediate_pos);
   }
-
+  
   // Z Axis translation from (0, 0, -180) to (0, 0, -220)
-  for (int i = z_start; i >= z_end; i--) {
-    Point p;
-    p.x = x_start;
-    p.y = y_start;
-    p.z = -i;
-    trajectory.push_back(p);
+  for (int i = 0; i < num_points; i++) {
+    double t = static_cast<double>(i) / (num_points - 1);
+    Point intermediate_pos;
+    intermediate_pos.x = x_start;
+    intermediate_pos.y = y_start;
+    intermediate_pos.z = z_start + t * (z_end - z_start);
+    trajectory.push_back(intermediate_pos);
   }
-  // Travel back to the starting point
-  for (int i = z_end; i <= z_start; i++) {
-    Point p;
-    p.x = x_start;
-    p.y = y_start;
-    p.z = -i;
-    trajectory.push_back(p);
+  // Go back to the starting point
+  for (int i = 0; i < num_points; i++) {
+    double t = static_cast<double>(i) / (num_points - 1);
+    Point intermediate_pos;
+    intermediate_pos.x = x_start;
+    intermediate_pos.y = y_start;
+    intermediate_pos.z = z_end - t * (z_end - z_start);
+    trajectory.push_back(intermediate_pos);
   }
 
   // Log the created trajectory
