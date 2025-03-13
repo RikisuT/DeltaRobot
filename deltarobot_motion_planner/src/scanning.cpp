@@ -26,3 +26,10 @@ Scanning::Scanning() : Node("scanner") {
     RCLCPP_INFO(this->get_logger(), "Service not available, waiting again...");
   }
 }
+
+int main(int argc, char* argv[]) {
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<Scanning>());
+  rclcpp::shutdown();
+  return 0;
+}
