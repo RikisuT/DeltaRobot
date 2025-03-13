@@ -37,24 +37,6 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Include launch files from deltarobot_kinematics
-install(DIRECTORY
-  ../deltarobot_kinematics/launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# Include launch files from deltarobot_motor_control
-install(DIRECTORY
-  ../deltarobot_motor_control/launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# Include launch files from kalman_filter
-install(DIRECTORY
-  ../kalman_filter/kalman_filter/launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
 
