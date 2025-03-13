@@ -28,6 +28,7 @@ private:
   // Recent values obtained from subscriptions
   std::unique_ptr<RobotConfig> robot_config;
   std::unique_ptr<Range> range;
-};;
+
+};
 
 #endif  // SCANNING_HPP_

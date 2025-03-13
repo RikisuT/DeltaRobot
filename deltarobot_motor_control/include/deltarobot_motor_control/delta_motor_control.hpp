@@ -10,14 +10,10 @@
 #include "dynamixel_sdk/dynamixel_sdk.h"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
-#include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
-#include "deltarobot_interfaces/srv/get_dynamixel_velocities.hpp"
 #include "deltarobot_interfaces/srv/set_joint_limits.hpp"
 
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
-using GetPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
-using GetVelocities = deltarobot_interfaces::srv::GetDynamixelVelocities;
 using SetJointLimits = deltarobot_interfaces::srv::SetJointLimits;
 
 class DeltaMotorControl : public rclcpp::Node {
@@ -27,10 +23,10 @@ public:
   ~DeltaMotorControl();
 
 private:
-  rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub;
-  rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub;
-  rclcpp::Service<GetPositions>::SharedPtr get_positions_server;
-  rclcpp::Service<GetVelocities>::SharedPtr get_velocities_server;
+  rclcpp::Subscription<DeltaJoints>::SharedPtr delta_joints_sub; // Subcriber to receive position commands
+  rclcpp::Subscription<DeltaJointVels>::SharedPtr delta_joint_vels_sub; // Subscriber to receive velocity commands
+  rclcpp::Publisher<DeltaJoints>::SharedPtr motor_positions_pub; // Publisher for real-time motor position feedback
+  rclcpp::Publisher<DeltaJointVels>::SharedPtr motor_velocities_pub; // Publisher for real-time motor velocity feedback
   rclcpp::Service<SetJointLimits>::SharedPtr set_joint_limits_server;
 
   dynamixel::PortHandler* portHandler;

@@ -81,16 +81,6 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
     std::bind(&DeltaKinematics::convertToJointVelTrajectory, this, std::placeholders::_1, std::placeholders::_2)
   );
 
-  // Wait for the GetDynamixelPositions service to be available
-  this->get_dynamixel_positions_client = create_client<GetDynamixelPositions>("get_motor_positions");
-  while (!this->get_dynamixel_positions_client->wait_for_service(std::chrono::seconds(2))) {
-    if (!rclcpp::ok()) {
-      RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return;
-    }
-    RCLCPP_INFO(this->get_logger(), "Service not available, waiting again...");
-  }
-
   // Wait for the set_joint_limits service to be available
   this->set_joint_limits_client = create_client<SetJointLimits>("set_joint_limits");
   while (!this->set_joint_limits_client->wait_for_service(std::chrono::seconds(2))) {
@@ -104,32 +94,45 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   // Create RobotConfig Publisher
   this->robot_config_publisher = create_publisher<RobotConfig>("robot_config", 10);
 
+  // Create subscribers for motor positions and velocities
+  this->motor_positions_sub = create_subscription<DeltaJoints>("motor_position_feedback", 10,
+    [this](const DeltaJoints::SharedPtr msg) -> void { // Update the motor positions
+    this->robot_state->theta1 = msg->theta1;
+    this->robot_state->theta2 = msg->theta2;
+    this->robot_state->theta3 = msg->theta3;
+  }
+  );
+
+  this->motor_velocities_sub = create_subscription<DeltaJointVels>("motor_velocity_feedback", 10,
+    [this](const DeltaJointVels::SharedPtr msg) -> void { // Update the motor velocities
+    this->robot_state->theta1_vel = msg->theta1_vel;
+    this->robot_state->theta2_vel = msg->theta2_vel;
+    this->robot_state->theta3_vel = msg->theta3_vel;
+  }
+  );
+
   // Call the set_joint_limits service and set the joint limits
   auto set_joint_limits_request = std::make_shared<SetJointLimits::Request>();
   set_joint_limits_request->min_rad = this->JMin;
   set_joint_limits_request->max_rad = this->JMax;
   set_joint_limits_request->max_vel_rad_s = this->MaxJointVel;
-
   auto result = this->set_joint_limits_client->async_send_request(set_joint_limits_request);
 
   // Create a timer to periodically get the motor positions and publish the robot configuration
-  this->create_wall_timer(std::chrono::duration<double>(1.0 / robot_config_freq), 
-      [this]() -> void {
-      auto request = std::make_shared<GetDynamixelPositions::Request>();
-      auto future = this->get_dynamixel_positions_client->async_send_request(request,
-        [this](ServiceResponseFuture<GetDynamixelPositions> future) {
-          auto result = future.get();
-          RobotConfig robot_config_msg;
-          robot_config_msg.header.stamp = this->now();
-          robot_config_msg.joint_angles.theta1 = result->theta1;
-          robot_config_msg.joint_angles.theta2 = result->theta2;
-          robot_config_msg.joint_angles.theta3 = result->theta3;
-          // Perform FK to get the end effector position
-          robot_config_msg.end_effector_position = this->deltaFK(result->theta1, result->theta2, result->theta3);
-          this->robot_config_publisher->publish(robot_config_msg);
-        }
-      );
-    }
+  this->create_wall_timer(std::chrono::duration<double>(1.0 / robot_config_freq),
+    [this]() -> void {
+    RobotConfig robot_config_msg;
+    robot_config_msg.header.stamp = this->now();
+    robot_config_msg.joint_angles.theta1 = this->robot_state->theta1;
+    robot_config_msg.joint_angles.theta2 = this->robot_state->theta2;
+    robot_config_msg.joint_angles.theta3 = this->robot_state->theta3;
+    robot_config_msg.joint_velocities.theta1_vel = this->robot_state->theta1_vel;
+    robot_config_msg.joint_velocities.theta2_vel = this->robot_state->theta2_vel;
+    robot_config_msg.joint_velocities.theta3_vel = this->robot_state->theta3_vel;
+    // Perform FK to get the end effector position
+    robot_config_msg.end_effector_position = this->deltaFK(this->robot_state->theta1, this->robot_state->theta2, this->robot_state->theta3);
+    this->robot_config_publisher->publish(robot_config_msg);
+  }
   );
 }
 

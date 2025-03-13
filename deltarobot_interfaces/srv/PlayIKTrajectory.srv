@@ -1,3 +1,0 @@
-IKTrajectory trajectory # Trajectory to execute
----
-bool success # True if the trajectory was executed successfully

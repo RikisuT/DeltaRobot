@@ -10,7 +10,6 @@
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
 #include "deltarobot_interfaces/srv/set_joint_limits.hpp"
-#include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
 #include <vector>
@@ -25,13 +24,21 @@ using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using RobotConfig = deltarobot_interfaces::msg::RobotConfig;
-using GetDynamixelPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
 
 typedef struct {
   double x_vel;
   double y_vel;
   double z_vel;
 } EEVelocity;
+
+typedef struct {
+  float theta1;
+  float theta2;
+  float theta3;
+  float theta1_vel;
+  float theta2_vel;
+  float theta3_vel;
+} DeltaRobotState;
 
 class DeltaKinematics : public rclcpp::Node {
 public:
@@ -44,7 +51,8 @@ private:
   rclcpp::Service<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_server;
   rclcpp::Service<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_server;
   rclcpp::Client<SetJointLimits>::SharedPtr set_joint_limits_client;
-  rclcpp::Client <GetDynamixelPositions >::SharedPtr get_dynamixel_positions_client;
+  rclcpp::Subscription <DeltaJoints >::SharedPtr motor_positions_sub;
+  rclcpp::Subscription <DeltaJointVels >::SharedPtr motor_velocities_sub;
   rclcpp::Publisher<RobotConfig>::SharedPtr robot_config_publisher;
 
   // Service Callbacks
@@ -65,6 +73,9 @@ private:
   DeltaJointVels calcThetaDot(double theta1, double theta2, double theta3, double x_dot, double y_dot, double z_dot);
   // Helper functions for computing end-effector velocity
   std::vector<EEVelocity> computeGradient(const std::vector<Point>& position_data, double dt);
+
+  // Latest Robot Configuration from feedback subscribers
+  std::shared_ptr<DeltaRobotState> robot_state;
 
   /// @brief Base Triangle Side Length [mm]
   float SB;

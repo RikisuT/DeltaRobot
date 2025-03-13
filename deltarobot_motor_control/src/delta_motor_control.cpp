@@ -174,101 +174,6 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   }
   );
 
-  // Service to get the current motor positions
-  this->get_positions_server = create_service<GetPositions>(
-    "get_motor_positions",
-    [this](
-      [[maybe_unused]] const std::shared_ptr<GetPositions::Request> request,
-      std::shared_ptr<GetPositions::Response> response) -> void
-  {
-    // Array of Motor Positions
-    std::array<int, 3> motor_positions = {0, 0, 0};
-
-    for (uint8_t i = 1; i <= motor_positions.size(); i++) {
-      uint8_t dxl_error = 0;
-      int dxl_comm_result = COMM_TX_FAIL;
-      // Read Present Position (length : 4 bytes) and Convert uint32 -> int32
-      // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
-      dxl_comm_result = this->packetHandler->read4ByteTxRx(
-        this->portHandler,
-        i,
-        ADDR_PRESENT_POSITION,
-        reinterpret_cast<uint32_t*>(&motor_positions[i - 1]),
-        &dxl_error
-      );
-      // Error Handling
-      if (dxl_comm_result != COMM_SUCCESS) {
-        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getTxRxResult(dxl_comm_result));
-      } else if (dxl_error != 0) {
-        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getRxPacketError(dxl_error));
-      }
-    }
-
-    // Convert positions from dynamixel units to radians
-    float theta1 = convertToRadians(motor_positions[0]);
-    float theta2 = convertToRadians(motor_positions[1]);
-    float theta3 = convertToRadians(motor_positions[2]);
-
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Motor Positions: (%d, %d, %d) [motor ticks] -> (%f, %f, %f) [rad]",
-      motor_positions[0], motor_positions[1], motor_positions[2],
-      theta1, theta2, theta3
-    );
-
-    response->theta1 = theta1;
-    response->theta2 = theta2;
-    response->theta3 = theta3;
-  }
-  );
-
-  // Service to get the current motor velocities
-  this->get_velocities_server = create_service<GetVelocities>(
-    "get_motor_velocities",
-    [this](
-      [[maybe_unused]] const std::shared_ptr<GetVelocities::Request> request,
-      std::shared_ptr<GetVelocities::Response> response) -> void
-  {
-    // Array of Motor Velocities
-    std::array<int, 3> motor_velocities = {0, 0, 0};
-
-    for (uint8_t i = 1; i <= motor_velocities.size(); i++) {
-      uint8_t dxl_error = 0;
-      int dxl_comm_result = COMM_TX_FAIL;
-      // Read Present Velocity (length : 4 bytes) and Convert uint32 -> int32
-      // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
-      dxl_comm_result = this->packetHandler->read4ByteTxRx(
-        this->portHandler,
-        i,
-        ADDR_PRESENT_VELOCITY,
-        reinterpret_cast<uint32_t*>(&motor_velocities[i - 1]),
-        &dxl_error
-      );
-      // Error Handling
-      if (dxl_comm_result != COMM_SUCCESS) {
-        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getTxRxResult(dxl_comm_result));
-      } else if (dxl_error != 0) {
-        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getRxPacketError(dxl_error));
-      }
-    }
-
-    // Convert velocities from dynamixel units to rev/min
-    for (uint8_t i = 0; i < motor_velocities.size(); i++) {
-      motor_velocities[i] = motor_velocities[i] * VEL_UNIT;
-    }
-
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Motor Velocities: (%d, %d, %d) [rev/min]",
-      motor_velocities[0], motor_velocities[1], motor_velocities[2]
-    );
-
-    response->motor1_velocity = motor_velocities[0];
-    response->motor2_velocity = motor_velocities[1];
-    response->motor3_velocity = motor_velocities[2];
-  }
-  );
-
   // Service to set the joint limits
   this->set_joint_limits_server = create_service<SetJointLimits>(
     "set_joint_limits",
@@ -329,6 +234,102 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
     this->enableTorque();
     response->success = true;
+  }
+  );
+
+  // Publishers for motor positions and velocities
+  this->motor_positions_pub = this->create_publisher<DeltaJoints>("motor_position_feedback", QOS_RKL10V);
+  this->motor_velocities_pub = this->create_publisher<DeltaJointVels>("motor_velocity_feedback", QOS_RKL10V);
+
+  // Timer to publish the motor positions and velocities
+  const float feedback_freq = 50.0; // [Hz]
+  auto timer = this->create_wall_timer(
+    std::chrono::duration<double>(1.0 / feedback_freq),
+    [this]() -> void
+  {
+    // Array of Motor Positions
+    std::array<int, 3> motor_positions = {0, 0, 0};
+
+    for (uint8_t i = 1; i <= motor_positions.size(); i++) {
+      uint8_t dxl_error = 0;
+      int dxl_comm_result = COMM_TX_FAIL;
+      // Read Present Position (length : 4 bytes) and Convert uint32 -> int32
+      // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
+      dxl_comm_result = this->packetHandler->read4ByteTxRx(
+        this->portHandler,
+        i,
+        ADDR_PRESENT_POSITION,
+        reinterpret_cast<uint32_t*>(&motor_positions[i - 1]),
+        &dxl_error
+      );
+      // Error Handling
+      if (dxl_comm_result != COMM_SUCCESS) {
+        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getTxRxResult(dxl_comm_result));
+      } else if (dxl_error != 0) {
+        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getRxPacketError(dxl_error));
+      }
+    }
+
+    // Convert positions from dynamixel units to radians
+    float theta1 = convertToRadians(motor_positions[0]);
+    float theta2 = convertToRadians(motor_positions[1]);
+    float theta3 = convertToRadians(motor_positions[2]);
+
+    RCLCPP_DEBUG(
+      this->get_logger(),
+      "Motor Positions: (%d, %d, %d) [motor ticks] -> (%f, %f, %f) [rad]",
+      motor_positions[0], motor_positions[1], motor_positions[2],
+      theta1, theta2, theta3
+    );
+
+    // Array of Motor Velocities
+    std::array<int, 3> motor_velocities = {0, 0, 0};
+
+    for (uint8_t i = 1; i <= motor_velocities.size(); i++) {
+      uint8_t dxl_error = 0;
+      int dxl_comm_result = COMM_TX_FAIL;
+      // Read Present Velocity (length : 4 bytes) and Convert uint32 -> int32
+      // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
+      dxl_comm_result = this->packetHandler->read4ByteTxRx(
+        this->portHandler,
+        i,
+        ADDR_PRESENT_VELOCITY,
+        reinterpret_cast<uint32_t*>(&motor_velocities[i - 1]),
+        &dxl_error
+      );
+      // Error Handling
+      if (dxl_comm_result != COMM_SUCCESS) {
+        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getTxRxResult(dxl_comm_result));
+      } else if (dxl_error != 0) {
+        RCLCPP_INFO(this->get_logger(), "%s", this->packetHandler->getRxPacketError(dxl_error));
+      }
+    }
+
+    // Convert velocities from dynamixel units to rev/min
+    for (uint8_t i = 0; i < motor_velocities.size(); i++) {
+      motor_velocities[i] = motor_velocities[i] * VEL_UNIT;
+    }
+
+    RCLCPP_DEBUG(
+      this->get_logger(),
+      "Motor Velocities: (%d, %d, %d) [rev/min]",
+      motor_velocities[0], motor_velocities[1], motor_velocities[2]
+    );
+
+    // Publish the motor positions and velocities
+    auto motor_positions_msg = DeltaJoints();
+    auto motor_velocities_msg = DeltaJointVels();
+    motor_positions_msg.header.stamp = this->now();
+    motor_velocities_msg.header.stamp = this->now();
+    motor_positions_msg.theta1 = theta1;
+    motor_positions_msg.theta2 = theta2;
+    motor_positions_msg.theta3 = theta3;
+    motor_velocities_msg.theta1_vel = motor_velocities[0];
+    motor_velocities_msg.theta2_vel = motor_velocities[1];
+    motor_velocities_msg.theta3_vel = motor_velocities[2];
+
+    this->motor_positions_pub->publish(motor_positions_msg);
+    this->motor_velocities_pub->publish(motor_velocities_msg);
   }
   );
 }

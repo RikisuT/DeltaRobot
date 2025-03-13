@@ -8,4 +8,4 @@
     joint_min: 0.174532925199 # [rad] (10 deg)
     joint_max: 1.4835298642 # [rad] (85 deg)
     max_joint_velocity: 5.0 # [rad/s]
-    robot_config_freq: 100.0 # [Hz]
+    robot_config_freq: 50.0 # [Hz]
