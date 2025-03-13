@@ -28,8 +28,8 @@ ament_target_dependencies(delta_motion_planner rclcpp geometry_msgs deltarobot_i
 target_link_libraries(delta_motion_planner ${deltarobot_interfaces_LIBRARIES})
 
 # Scanner Node
-add_executable(scanner src/scanning.cpp)
-ament_target_dependencies(scanner rclcpp std_msgs sensor_msgs geometry_msgs)
+add_executable(range_scanner src/range_scanner.cpp)
+ament_target_dependencies(range_scanner rclcpp std_msgs sensor_msgs geometry_msgs)
 target_link_libraries(scanner ${deltarobot_interfaces_LIBRARIES})
 
 # Install
@@ -39,7 +39,7 @@ install(TARGETS
 )
 
 install(TARGETS
-  scanner
+  range_scanner
   DESTINATION lib/${PROJECT_NAME}
 )
 
