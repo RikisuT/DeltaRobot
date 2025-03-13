@@ -1,5 +1,5 @@
-#ifndef DELTA_TRAJ_GEN_HPP_
-#define DELTA_TRAJ_GEN_HPP_
+#ifndef DELTA_TRAJECTORY_GENERATOR_HPP_
+#define DELTA_TRAJECTORY_GENERATOR_HPP_
 
 #include "rclcpp/rclcpp.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
@@ -27,4 +27,4 @@ class DeltaTrajectoryGenerator : public rclcpp::Node {
 
 };
 
-#endif // !DELTA_TRAJ_GEN_HPP_
+#endif // !DELTA_TRAJECTORY_GENERATOR_HPP_
