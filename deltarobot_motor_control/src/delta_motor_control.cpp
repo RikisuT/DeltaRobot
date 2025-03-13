@@ -238,12 +238,12 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   );
 
   // Publishers for motor positions and velocities
-  this->motor_positions_pub = this->create_publisher<DeltaJoints>("motor_position_feedback", QOS_RKL10V);
-  this->motor_velocities_pub = this->create_publisher<DeltaJointVels>("motor_velocity_feedback", QOS_RKL10V);
+  this->motor_positions_pub = this->create_publisher<DeltaJoints>("motor_position_feedback", 10);
+  this->motor_velocities_pub = this->create_publisher<DeltaJointVels>("motor_velocity_feedback", 10);
 
   // Timer to publish the motor positions and velocities
-  const float feedback_freq = 50.0; // [Hz]
-  auto timer = this->create_wall_timer(
+  const double feedback_freq = 25.0; // [Hz]
+  this->motor_feedback_timer = this->create_wall_timer(
     std::chrono::duration<double>(1.0 / feedback_freq),
     [this]() -> void
   {

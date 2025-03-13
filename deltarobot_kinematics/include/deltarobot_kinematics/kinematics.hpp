@@ -54,6 +54,7 @@ private:
   rclcpp::Subscription <DeltaJoints >::SharedPtr motor_positions_sub;
   rclcpp::Subscription <DeltaJointVels >::SharedPtr motor_velocities_sub;
   rclcpp::Publisher<RobotConfig>::SharedPtr robot_config_publisher;
+  rclcpp::TimerBase::SharedPtr robot_config_timer;
 
   // Service Callbacks
   void forwardKinematics(const std::shared_ptr<DeltaFK::Request> request, std::shared_ptr<DeltaFK::Response> response);
@@ -75,7 +76,7 @@ private:
   std::vector<EEVelocity> computeGradient(const std::vector<Point>& position_data, double dt);
 
   // Latest Robot Configuration from feedback subscribers
-  std::shared_ptr<DeltaRobotState> robot_state;
+  DeltaRobotState robot_state;
 
   /// @brief Base Triangle Side Length [mm]
   float SB;

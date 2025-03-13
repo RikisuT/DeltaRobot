@@ -97,17 +97,17 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   // Create subscribers for motor positions and velocities
   this->motor_positions_sub = create_subscription<DeltaJoints>("motor_position_feedback", 10,
     [this](const DeltaJoints::SharedPtr msg) -> void { // Update the motor positions
-    this->robot_state->theta1 = msg->theta1;
-    this->robot_state->theta2 = msg->theta2;
-    this->robot_state->theta3 = msg->theta3;
+    this->robot_state.theta1 = msg->theta1;
+    this->robot_state.theta2 = msg->theta2;
+    this->robot_state.theta3 = msg->theta3;
   }
   );
 
   this->motor_velocities_sub = create_subscription<DeltaJointVels>("motor_velocity_feedback", 10,
     [this](const DeltaJointVels::SharedPtr msg) -> void { // Update the motor velocities
-    this->robot_state->theta1_vel = msg->theta1_vel;
-    this->robot_state->theta2_vel = msg->theta2_vel;
-    this->robot_state->theta3_vel = msg->theta3_vel;
+    this->robot_state.theta1_vel = msg->theta1_vel;
+    this->robot_state.theta2_vel = msg->theta2_vel;
+    this->robot_state.theta3_vel = msg->theta3_vel;
   }
   );
 
@@ -119,18 +119,23 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   auto result = this->set_joint_limits_client->async_send_request(set_joint_limits_request);
 
   // Create a timer to periodically get the motor positions and publish the robot configuration
-  this->create_wall_timer(std::chrono::duration<double>(1.0 / robot_config_freq),
+  this->robot_config_timer = this->create_wall_timer(
+    std::chrono::duration<double>(1.0 / robot_config_freq),
     [this]() -> void {
     RobotConfig robot_config_msg;
     robot_config_msg.header.stamp = this->now();
-    robot_config_msg.joint_angles.theta1 = this->robot_state->theta1;
-    robot_config_msg.joint_angles.theta2 = this->robot_state->theta2;
-    robot_config_msg.joint_angles.theta3 = this->robot_state->theta3;
-    robot_config_msg.joint_velocities.theta1_vel = this->robot_state->theta1_vel;
-    robot_config_msg.joint_velocities.theta2_vel = this->robot_state->theta2_vel;
-    robot_config_msg.joint_velocities.theta3_vel = this->robot_state->theta3_vel;
+    robot_config_msg.joint_angles.theta1 = this->robot_state.theta1;
+    robot_config_msg.joint_angles.theta2 = this->robot_state.theta2;
+    robot_config_msg.joint_angles.theta3 = this->robot_state.theta3;
+    robot_config_msg.joint_velocities.theta1_vel = this->robot_state.theta1_vel;
+    robot_config_msg.joint_velocities.theta2_vel = this->robot_state.theta2_vel;
+    robot_config_msg.joint_velocities.theta3_vel = this->robot_state.theta3_vel;
     // Perform FK to get the end effector position
-    robot_config_msg.end_effector_position = this->deltaFK(this->robot_state->theta1, this->robot_state->theta2, this->robot_state->theta3);
+    robot_config_msg.end_effector_position = this->deltaFK(
+      this->robot_state.theta1,
+      this->robot_state.theta2,
+      this->robot_state.theta3
+    );
     this->robot_config_publisher->publish(robot_config_msg);
   }
   );

@@ -28,6 +28,7 @@ private:
   rclcpp::Publisher<DeltaJoints>::SharedPtr motor_positions_pub; // Publisher for real-time motor position feedback
   rclcpp::Publisher<DeltaJointVels>::SharedPtr motor_velocities_pub; // Publisher for real-time motor velocity feedback
   rclcpp::Service<SetJointLimits>::SharedPtr set_joint_limits_server;
+  rclcpp::TimerBase::SharedPtr motor_feedback_timer;
 
   dynamixel::PortHandler* portHandler;
   dynamixel::PacketHandler* packetHandler;
