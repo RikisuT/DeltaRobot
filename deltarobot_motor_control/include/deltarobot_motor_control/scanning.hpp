@@ -30,8 +30,8 @@ private:
   rclcpp::Subscription<Range>::SharedPtr range_sub;
 
   // Recent values obtained from subscriptions
-  RobotConfig robot_config;
-  Range range;
-};
+  std::unique_ptr<RobotConfig> robot_config;
+  std::unique_ptr<Range> range;
+};;
 
 #endif  // SCANNING_HPP_
