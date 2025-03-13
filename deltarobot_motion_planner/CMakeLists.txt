@@ -14,6 +14,8 @@ find_package(deltarobot_kinematics REQUIRED)
 find_package(deltarobot_motor_control REQUIRED)
 find_package(kalman_filter REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 include_directories(
   include/deltarobot_motion_planner
