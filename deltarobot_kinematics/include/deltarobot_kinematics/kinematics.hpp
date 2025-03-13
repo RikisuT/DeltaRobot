@@ -6,9 +6,11 @@
 #include "deltarobot_interfaces/srv/delta_ik.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/msg/delta_joint_vels.hpp"
+#include "deltarobot_interfaces/msg/robot_config.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
 #include "deltarobot_interfaces/srv/set_joint_limits.hpp"
+#include "deltarobot_interfaces/srv/get_dynamixel_positions.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
 #include <vector>
@@ -22,6 +24,8 @@ using SetJointLimits = deltarobot_interfaces::srv::SetJointLimits;
 using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
+using RobotConfig = deltarobot_interfaces::msg::RobotConfig;
+using GetDynamixelPositions = deltarobot_interfaces::srv::GetDynamixelPositions;
 
 typedef struct {
   double x_vel;
@@ -40,6 +44,8 @@ private:
   rclcpp::Service<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_server;
   rclcpp::Service<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_server;
   rclcpp::Client<SetJointLimits>::SharedPtr set_joint_limits_client;
+  rclcpp::Client <GetDynamixelPositions >::SharedPtr get_dynamixel_positions_client;
+  rclcpp::Publisher<RobotConfig>::SharedPtr robot_config_publisher;
 
   // Service Callbacks
   void forwardKinematics(const std::shared_ptr<DeltaFK::Request> request, std::shared_ptr<DeltaFK::Response> response);

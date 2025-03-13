@@ -37,6 +37,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DeltaJointVels.msg"
   "msg/FKTrajectory.msg"
   "msg/IKTrajectory.msg"
+  "msg/RobotConfig.msg"
   "srv/DeltaFK.srv"
   "srv/DeltaIK.srv"
   "srv/GetDynamixelPositions.srv"

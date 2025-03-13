@@ -30,6 +30,9 @@ const float tan60 = sqrt3;
 constexpr float sin30 = 0.5;
 const float tan30 = 1 / sqrt3;
 
+template<typename T>
+using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
+
 DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   RCLCPP_INFO(this->get_logger(), "DeltaKinematics Started");
 
@@ -42,6 +45,7 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   this->declare_parameter("joint_min", 0.0);
   this->declare_parameter("joint_max", M_PI / 2.0);
   this->declare_parameter("max_joint_velocity", 1.0);
+  this->declare_parameter("robot_config_freq", 10.0);
 
   // Save parameters from yaml for easy access
   this->SB = this->get_parameter("base_triangle_side_length").as_double();
@@ -52,6 +56,7 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   this->JMin = this->get_parameter("joint_min").as_double();
   this->JMax = this->get_parameter("joint_max").as_double();
   this->MaxJointVel = this->get_parameter("max_joint_velocity").as_double();
+  const double robot_config_freq = this->get_parameter("robot_config_freq").as_double();
 
   // Create FK and IK servers
   this->delta_fk_server = create_service<DeltaFK>(
@@ -76,6 +81,16 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
     std::bind(&DeltaKinematics::convertToJointVelTrajectory, this, std::placeholders::_1, std::placeholders::_2)
   );
 
+  // Wait for the GetDynamixelPositions service to be available
+  this->get_dynamixel_positions_client = create_client<GetDynamixelPositions>("get_motor_positions");
+  while (!this->get_dynamixel_positions_client->wait_for_service(std::chrono::seconds(2))) {
+    if (!rclcpp::ok()) {
+      RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
+      return;
+    }
+    RCLCPP_INFO(this->get_logger(), "Service not available, waiting again...");
+  }
+
   // Wait for the set_joint_limits service to be available
   this->set_joint_limits_client = create_client<SetJointLimits>("set_joint_limits");
   while (!this->set_joint_limits_client->wait_for_service(std::chrono::seconds(2))) {
@@ -86,6 +101,9 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
     RCLCPP_INFO(this->get_logger(), "Service not available, waiting again...");
   }
 
+  // Create RobotConfig Publisher
+  this->robot_config_publisher = create_publisher<RobotConfig>("robot_config", 10);
+
   // Call the set_joint_limits service and set the joint limits
   auto set_joint_limits_request = std::make_shared<SetJointLimits::Request>();
   set_joint_limits_request->min_rad = this->JMin;
@@ -93,6 +111,26 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   set_joint_limits_request->max_vel_rad_s = this->MaxJointVel;
 
   auto result = this->set_joint_limits_client->async_send_request(set_joint_limits_request);
+
+  // Create a timer to periodically get the motor positions and publish the robot configuration
+  this->create_wall_timer(std::chrono::duration<double>(1.0 / robot_config_freq), 
+      [this]() -> void {
+      auto request = std::make_shared<GetDynamixelPositions::Request>();
+      auto future = this->get_dynamixel_positions_client->async_send_request(request,
+        [this](ServiceResponseFuture<GetDynamixelPositions> future) {
+          auto result = future.get();
+          RobotConfig robot_config_msg;
+          robot_config_msg.header.stamp = this->now();
+          robot_config_msg.joint_angles.theta1 = result->theta1;
+          robot_config_msg.joint_angles.theta2 = result->theta2;
+          robot_config_msg.joint_angles.theta3 = result->theta3;
+          // Perform FK to get the end effector position
+          robot_config_msg.end_effector_position = this->deltaFK(result->theta1, result->theta2, result->theta3);
+          this->robot_config_publisher->publish(robot_config_msg);
+        }
+      );
+    }
+  );
 }
 
 void DeltaKinematics::forwardKinematics(const std::shared_ptr<DeltaFK::Request> request, std::shared_ptr<DeltaFK::Response> response) {

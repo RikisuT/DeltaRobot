@@ -46,6 +46,8 @@ private:
   void disableTorque();
   void enableTorque();
 
+
+  float convertToRadians(int motor_pos);
   uint32_t convertToMotorPosition(float theta);
   int convertToMotorVelocity(float theta_vel);
 };

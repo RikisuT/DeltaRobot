@@ -204,15 +204,21 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
       }
     }
 
+    // Convert positions from dynamixel units to radians
+    float theta1 = convertToRadians(motor_positions[0]);
+    float theta2 = convertToRadians(motor_positions[1]);
+    float theta3 = convertToRadians(motor_positions[2]);
+
     RCLCPP_INFO(
       this->get_logger(),
-      "Motor Positions: (%d, %d, %d) [motor ticks]",
-      motor_positions[0], motor_positions[1], motor_positions[2]
+      "Motor Positions: (%d, %d, %d) [motor ticks] -> (%f, %f, %f) [rad]",
+      motor_positions[0], motor_positions[1], motor_positions[2],
+      theta1, theta2, theta3
     );
 
-    response->motor1_position = motor_positions[0];
-    response->motor2_position = motor_positions[1];
-    response->motor3_position = motor_positions[2];
+    response->theta1 = theta1;
+    response->theta2 = theta2;
+    response->theta3 = theta3;
   }
   );
 
@@ -440,6 +446,11 @@ void DeltaMotorControl::enableTorque() {
   } else {
     RCLCPP_INFO(this->get_logger(), "Succeeded to enable torque.");
   }
+}
+
+float DeltaMotorControl::convertToRadians(int motor_pos) {
+  // Convert motor position [0, 4096) to theta [rad]
+  return (motor_pos - UP_POS) / RAD_TO_MOTOR_TICKS;
 }
 
 uint32_t DeltaMotorControl::convertToMotorPosition(float theta) {
