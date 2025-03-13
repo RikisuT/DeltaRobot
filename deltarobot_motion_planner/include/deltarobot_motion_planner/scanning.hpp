@@ -1,10 +1,6 @@
 #ifndef SCANNING_HPP_
 #define SCANNING_HPP_
 
-#include <cstdio>
-#include <memory>
-#include <string>
-
 #include "rclcpp/rclcpp.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/srv/play_demo_trajectory.hpp"

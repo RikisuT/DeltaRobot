@@ -22,14 +22,24 @@ include_directories(
   ${deltarobot_interfaces_INCLUDE_DIRS}
 )
 
-# Delta Testing Node
+# MotionPlanner Node
 add_executable(delta_motion_planner src/delta_motion_planner.cpp)
 ament_target_dependencies(delta_motion_planner rclcpp geometry_msgs deltarobot_interfaces deltarobot_trajectory_generator deltarobot_kinematics deltarobot_motor_control kalman_filter)
 target_link_libraries(delta_motion_planner ${deltarobot_interfaces_LIBRARIES})
 
+# Scanner Node
+add_executable(scanner src/scanning.cpp)
+ament_target_dependencies(scanner rclcpp std_msgs sensor_msgs geometry_msgs)
+target_link_libraries(scanner ${deltarobot_interfaces_LIBRARIES})
+
 # Install
 install(TARGETS
   delta_motion_planner
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(TARGETS
+  scanner
   DESTINATION lib/${PROJECT_NAME}
 )
 
