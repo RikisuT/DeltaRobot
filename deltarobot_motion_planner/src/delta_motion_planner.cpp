@@ -201,7 +201,8 @@ void DeltaMotionPlanner::playDemoTrajectory(
 
 std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
   // Scan trajectory is saved in "scan_trajectory.csv" file
-  const std::string file_path = "/home/delta/DeltaRobot/scan_trajectory.csv";
+  const std::string user = std::getenv("USER");
+  const std::string file_path = "/home/" + user + "/DeltaRobot/scan_trajectory.csv";
   // The csv file has 3 columns: X, Y, Z
   std::ifstream file(file_path);
   if (!file.is_open()) {
