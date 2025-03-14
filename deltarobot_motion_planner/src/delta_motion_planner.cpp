@@ -161,64 +161,36 @@ void DeltaMotionPlanner::playDemoTrajectory(
     response->success = false;
     return;
   }
-  RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s (%s control)", type.c_str(), request->velocity_control ? "velocity" : "position");
+  RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s", type.c_str());
 
-  // Create either a position or velocity joint trajectory
-  if (!request->velocity_control) {
-    // Create a joint trajectory using the convert_to_joint_trajectory service
-    auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
-    convert_request->end_effector_trajectory = trajectory;
+  // Create a joint trajectory using the convert_to_joint_trajectory service
+  auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
+  convert_request->end_effector_trajectory = trajectory;
 
-    auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-    // Call the convert_to_joint_trajectory service
-    // ---------- BEGIN_CITATION [1] ----------
-    auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
-      convert_request,
-      [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
-      auto response = future.get();
-      // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_trajectory service");
-      *joint_traj = response->joint_trajectory;
+  auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
+  // Call the convert_to_joint_trajectory service
+  // ---------- BEGIN_CITATION [1] ----------
+  auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
+    convert_request,
+    [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
+    auto response = future.get();
+    // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_trajectory service");
+    *joint_traj = response->joint_trajectory;
 
-      // Print the joint trajectory
-      RCLCPP_INFO(get_logger(), "Joint trajectory created with %ld points:", joint_traj->size());
-      // for (unsigned int i = 0; i < joint_traj->size(); i++) {
-      //   const auto& joints = joint_traj->at(i);
-      //   RCLCPP_INFO(get_logger(), "\t Joint Angles %d: (%.2f, %.2f, %.2f) [rad]", i + 1, joints.theta1, joints.theta2, joints.theta3);
-      // }
+    // Print the joint trajectory
+    RCLCPP_INFO(get_logger(), "Joint trajectory created with %ld points:", joint_traj->size());
+    // for (unsigned int i = 0; i < joint_traj->size(); i++) {
+    //   const auto& joints = joint_traj->at(i);
+    //   RCLCPP_INFO(get_logger(), "\t Joint Angles %d: (%.2f, %.2f, %.2f) [rad]", i + 1, joints.theta1, joints.theta2, joints.theta3);
+    // }
 
-      RCLCPP_INFO(get_logger(), "Publishing joint trajectory to motors");
-      // Publish the joint trajectory to the motors with a 50ms delay between each point
-      this->publishMotorCommands(*joint_traj, 50);
-    }
-    );
-    // ---------- END_CITATION [1] ----------
-  } else {
-    // Create a joint velocity trajectory using the convert_to_joint_vel_trajectory service
-    auto convert_vel_request = std::make_shared<ConvertToJointVelTrajectory::Request>();
-    convert_vel_request->end_effector_trajectory = trajectory;
-
-    auto joint_vel_traj = std::make_shared<std::vector<DeltaJointVels>>();
-    // Call the convert_to_joint_vel_trajectory service
-    auto future_result = this->convert_to_joint_vel_trajectory_client->async_send_request(
-      convert_vel_request,
-      [this, joint_vel_traj](ServiceResponseFuture<ConvertToJointVelTrajectory> future) {
-      auto response = future.get();
-      RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_vel_trajectory service");
-      *joint_vel_traj = response->joint_vel_trajectory;
-
-      // Print the joint velocity trajectory
-      RCLCPP_INFO(get_logger(), "Joint velocity trajectory created with %ld points:", joint_vel_traj->size());
-      // for (unsigned int i = 0; i < joint_vel_traj->size(); i++) {
-      //   const auto& joint_vels = joint_vel_traj->at(i);
-      //   RCLCPP_INFO(get_logger(), "\t Joint Velocities %d: (%.2f, %.2f, %.2f) [rad/s]", i + 1, joint_vels.theta1_vel, joint_vels.theta2_vel, joint_vels.theta3_vel);
-      // }
-
-      RCLCPP_INFO(get_logger(), "Publishing joint velocity trajectory to motors");
-      // Publish the joint velocity trajectory to the motors with a 50ms delay between each point
-      this->publishMotorVelocityCommands(*joint_vel_traj, 50);
-    }
-    );
+    RCLCPP_INFO(get_logger(), "Publishing joint trajectory to motors");
+    // Publish the joint trajectory to the motors with a 50ms delay between each point
+    this->publishMotorCommands(*joint_traj, 50);
   }
+  );
+  // ---------- END_CITATION [1] ----------
+  
 
   // Signal success
   response->success = true;
