@@ -46,6 +46,7 @@ private:
   std::vector<Point> pringleTrajectory();
   std::vector<Point> axesTrajectory();
   std::vector<Point> circleTrajectory();
+  std::vector<Point> scanTrajectory();
 };
 
 #endif // !DELTA_MOTION_PLANNER_HPP_

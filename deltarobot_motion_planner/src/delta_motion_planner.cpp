@@ -152,7 +152,10 @@ void DeltaMotionPlanner::playDemoTrajectory(
     trajectory = this->axesTrajectory();
   } else if (type == "circle") {
     trajectory = this->circleTrajectory();
-  } else {
+  } else if (type == "scan") {
+    trajectory = this->scanTrajectory();
+  }
+  else {
     RCLCPP_ERROR(get_logger(), "Invalid demo trajectory: %s", type.c_str());
     RCLCPP_ERROR(get_logger(), "Available demo trajectories: %s", std::accumulate(
       std::next(available_demos.begin()), available_demos.end(), available_demos[0],
@@ -194,6 +197,10 @@ void DeltaMotionPlanner::playDemoTrajectory(
 
   // Signal success
   response->success = true;
+}
+
+std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
+  // Scanning is to collect a bunch of data points in the workspace
 }
 
 std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
