@@ -26,7 +26,7 @@ hull_x, hull_y = hull_points[:, 0], hull_points[:, 1]
 hull_center = np.mean(hull_points, axis=0)
 
 # Compute padded hull points
-shrink_factor = 0.95  # Adjust this to control shrinkage
+shrink_factor = 0.9  # Adjust this to control shrinkage
 hull_x_padded = hull_center[0] + shrink_factor * (hull_x - hull_center[0])
 hull_y_padded = hull_center[1] + shrink_factor * (hull_y - hull_center[1])
 
@@ -88,6 +88,7 @@ plt.legend()
 plt.title("Optimized Snake Scan Path Using Padded Hull")
 plt.grid()
 plt.savefig("optimized_snake_scan.png")
+plt.show()
 
 # Save trajectory to a CSV file
 scan_trajectory_df = pd.DataFrame({"X": x_traj, "Y": y_traj, "Z": z_traj})
