@@ -87,7 +87,7 @@ plt.ylabel("Y")
 plt.legend()
 plt.title("Optimized Snake Scan Path Using Padded Hull")
 plt.grid()
-plt.show()
+plt.savefig("optimized_snake_scan.png")
 
 # Save trajectory to a CSV file
 scan_trajectory_df = pd.DataFrame({"X": x_traj, "Y": y_traj, "Z": z_traj})
