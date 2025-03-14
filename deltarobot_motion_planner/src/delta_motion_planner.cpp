@@ -155,8 +155,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
     trajectory = this->circleTrajectory();
   } else if (type == "scan") {
     trajectory = this->scanTrajectory();
-  }
-  else {
+  } else {
     RCLCPP_ERROR(get_logger(), "Invalid demo trajectory: %s", type.c_str());
     RCLCPP_ERROR(get_logger(), "Available demo trajectories: %s", std::accumulate(
       std::next(available_demos.begin()), available_demos.end(), available_demos[0],
@@ -194,7 +193,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
   }
   );
   // ---------- END_CITATION [1] ----------
-  
+
 
   // Signal success
   response->success = true;
@@ -202,7 +201,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
 
 std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
   // Scan trajectory is saved in "scan_trajectory.csv" file
-  const std::string file_path = "/home/sharwin/DeltaRobot/scan_trajectory.csv";
+  const std::string file_path = "/home/delta/DeltaRobot/scan_trajectory.csv";
   // The csv file has 3 columns: X, Y, Z
   std::ifstream file(file_path);
   if (!file.is_open()) {
