@@ -12,6 +12,7 @@
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
+#include <fstream>
 
 template<typename T>
 using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
@@ -200,7 +201,37 @@ void DeltaMotionPlanner::playDemoTrajectory(
 }
 
 std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
-  // Scanning is to collect a bunch of data points in the workspace
+  // Scan trajectory is saved in "scan_trajectory.csv" file
+  const std::string file_path = "/home/sharwin/DeltaRobot/scan_trajectory.csv";
+  // The csv file has 3 columns: X, Y, Z
+  std::ifstream file(file_path);
+  if (!file.is_open()) {
+    RCLCPP_ERROR(get_logger(), "Failed to open file: %s", file_path.c_str());
+    return {};
+  }
+  std::vector<Point> trajectory;
+  std::string line;
+  bool first_line = true; // Skip the header
+  while (std::getline(file, line)) {
+    if (first_line) {
+      first_line = false;
+      continue;
+    }
+    std::istringstream iss(line);
+    std::string value;
+    Point p;
+
+    std::getline(iss, value, ',');
+    p.x = std::stod(value);
+    std::getline(iss, value, ',');
+    p.y = std::stod(value);
+    std::getline(iss, value, ',');
+    p.z = std::stod(value);
+
+    trajectory.push_back(p);
+  }
+  file.close();
+  return trajectory;
 }
 
 std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
