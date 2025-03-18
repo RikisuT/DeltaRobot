@@ -1,10 +1,10 @@
 /**:
   ros__parameters:
     base_triangle_side_length: 261.30642 # [mm]
-    end_effector_side_length: 73.48076 # [mm]
+    end_effector_side_length: 146.96152 # [mm] # 73.48076
     active_link_length: 108.0 # [mm]
     passive_link_length: 174.0 # [mm]
-    passive_link_width: 42.8 # [mm]
+    passive_link_width: 42.84670 # [mm]
     joint_min: 0.174532925199 # [rad] (10 deg)
     joint_max: 1.4835298642 # [rad] (85 deg)
     max_joint_velocity: 5.0 # [rad/s]

@@ -263,7 +263,7 @@ Point DeltaKinematics::deltaFK(float theta1, float theta2, float theta3) {
   if (d < 0) {
     RCLCPP_ERROR(this->get_logger(), "DeltaFK: Invalid Configuration (%f, %f, %f) [rad]", theta1, theta2, theta3);
   } else {
-    z = (-b + sqrt(d)) / (2 * a);
+    z = -0.5 * (b + sqrt(d)) / a;
     x = (a1 * z + b1) / dnm;
     y = (a2 * z + b2) / dnm;
   }
