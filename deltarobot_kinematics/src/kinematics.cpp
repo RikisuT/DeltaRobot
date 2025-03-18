@@ -132,9 +132,9 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
     robot_config_msg.joint_velocities.theta3_vel = this->robot_state.theta3_vel;
     // Perform FK to get the end effector position
     robot_config_msg.end_effector_position = this->deltaFK(
-      this->robot_state.theta1,
-      this->robot_state.theta2,
-      this->robot_state.theta3
+      robot_config_msg.joint_angles.theta1,
+      robot_config_msg.joint_angles.theta2,
+      robot_config_msg.joint_angles.theta3
     );
     this->robot_config_publisher->publish(robot_config_msg);
   }
@@ -150,6 +150,19 @@ void DeltaKinematics::forwardKinematics(const std::shared_ptr<DeltaFK::Request> 
   response->solution.x = position.x;
   response->solution.y = position.y;
   response->solution.z = position.z;
+  response->success = true;
+}
+
+void DeltaKinematics::inverseKinematics(const std::shared_ptr<DeltaIK::Request> request, std::shared_ptr<DeltaIK::Response> response) {
+  DeltaJoints joints = this->deltaIK(
+    request->solution.x, request->solution.y, request->solution.z
+  );
+
+  // Update the response data (joint angles)
+  response->joint_angles.theta1 = joints.theta1;
+  response->joint_angles.theta2 = joints.theta2;
+  response->joint_angles.theta3 = joints.theta3;
+  response->success = true;
 }
 
 int DeltaKinematics::deltaIK_AngleYZ(float x0, float y0, float z0, float& theta) {
@@ -167,16 +180,6 @@ int DeltaKinematics::deltaIK_AngleYZ(float x0, float y0, float z0, float& theta)
   return 0;
 }
 
-void DeltaKinematics::inverseKinematics(const std::shared_ptr<DeltaIK::Request> request, std::shared_ptr<DeltaIK::Response> response) {
-  DeltaJoints joints = this->deltaIK(
-    request->solution.x, request->solution.y, request->solution.z
-  );
-
-  // Update the response data (joint angles)
-  response->joint_angles.theta1 = joints.theta1;
-  response->joint_angles.theta2 = joints.theta2;
-  response->joint_angles.theta3 = joints.theta3;
-}
 
 void DeltaKinematics::convertToJointTrajectory(const std::shared_ptr<ConvertToJointTrajectory::Request> request, std::shared_ptr<ConvertToJointTrajectory::Response> response) {
   // Locally save the request data (end effector trajectory)
