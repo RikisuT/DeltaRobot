@@ -5,13 +5,13 @@ RangeScanner::RangeScanner() : Node("range_scanner") {
 
   // Create the subscriptions and update the recent values
   this->robot_config_sub = this->create_subscription<RobotConfig>(
-    "/robot_config",
+    "delta_robot/robot_config",
     rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
     [this](const RobotConfig::SharedPtr msg) -> void {this->robot_config = std::make_unique<RobotConfig>(*msg);}
   );
 
   this->range_sub = this->create_subscription<Range>(
-    "vl53l1x/range",
+    "vl53l1x/filtered_range",
     rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
     [this](const Range::SharedPtr msg) -> void {this->range = std::make_unique<Range>(*msg);}
   );
@@ -32,6 +32,8 @@ RangeScanner::RangeScanner() : Node("range_scanner") {
     [this]() -> void {
     if (!this->isScanning) {
       this->startScanning();
+    } else {
+      // Plot the saved scan points
     }
   }
   );

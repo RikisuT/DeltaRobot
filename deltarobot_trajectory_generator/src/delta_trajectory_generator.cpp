@@ -20,7 +20,7 @@ using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTraje
 DeltaTrajectoryGenerator::DeltaTrajectoryGenerator() : Node("delta_trajectory_generator") {
   RCLCPP_INFO(get_logger(), "DeltaTrajectoryGenerator node started");
 
-  this->delta_ik_client = create_client<DeltaIK>("delta_ik");
+  this->delta_ik_client = create_client<DeltaIK>("delta_kinematics/delta_ik");
   // Wait until service is ready
   while (!this->delta_ik_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
@@ -30,7 +30,7 @@ DeltaTrajectoryGenerator::DeltaTrajectoryGenerator() : Node("delta_trajectory_ge
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
 
-  this->convert_to_joint_trajectory_client = create_client<ConvertToJointTrajectory>("convert_to_joint_trajectory");
+  this->convert_to_joint_trajectory_client = create_client<ConvertToJointTrajectory>("delta_kinematics/convert_to_joint_trajectory");
   // Wait until service is ready
   while (!this->convert_to_joint_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
@@ -40,7 +40,7 @@ DeltaTrajectoryGenerator::DeltaTrajectoryGenerator() : Node("delta_trajectory_ge
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
 
-  this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("convert_to_joint_vel_trajectory");
+  this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("delta_kinematics/convert_to_joint_vel_trajectory");
   // Wait until service is ready
   while (!this->convert_to_joint_vel_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {

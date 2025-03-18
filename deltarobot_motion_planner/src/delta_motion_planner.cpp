@@ -30,10 +30,10 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   );
 
   const auto QOS_RKL10V = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
-  this->joint_pub = this->create_publisher<DeltaJoints>("set_joints", QOS_RKL10V);
-  this->joint_vel_pub = this->create_publisher<DeltaJointVels>("set_joint_vels", QOS_RKL10V);
+  this->joint_pub = this->create_publisher<DeltaJoints>("delta_motors/set_joints", QOS_RKL10V);
+  this->joint_vel_pub = this->create_publisher<DeltaJointVels>("delta_motors/set_joint_vels", QOS_RKL10V);
 
-  this->delta_ik_client = create_client<DeltaIK>("delta_ik");
+  this->delta_ik_client = create_client<DeltaIK>("delta_kinematics/delta_ik");
   // Wait until service is ready
   while (!this->delta_ik_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
@@ -43,7 +43,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
 
-  this->delta_fk_client = create_client<DeltaFK>("delta_fk");
+  this->delta_fk_client = create_client<DeltaFK>("delta_kinematics/delta_fk");
   // Wait until service is ready
   while (!this->delta_fk_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
@@ -53,7 +53,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
 
-  this->convert_to_joint_trajectory_client = create_client<ConvertToJointTrajectory>("convert_to_joint_trajectory");
+  this->convert_to_joint_trajectory_client = create_client<ConvertToJointTrajectory>("delta_kinematics/convert_to_joint_trajectory");
   // Wait until service is ready
   while (!this->convert_to_joint_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
@@ -63,7 +63,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
 
-  this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("convert_to_joint_vel_trajectory");
+  this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("delta_kinematics/convert_to_joint_vel_trajectory");
   // Wait until service is ready
   while (!this->convert_to_joint_vel_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {

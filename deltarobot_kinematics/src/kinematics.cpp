@@ -60,29 +60,29 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
 
   // Create FK and IK servers
   this->delta_fk_server = create_service<DeltaFK>(
-    "delta_fk",
+    "delta_kinematics/delta_fk",
     std::bind(&DeltaKinematics::forwardKinematics, this, std::placeholders::_1, std::placeholders::_2)
   );
 
   this->delta_ik_server = create_service<DeltaIK>(
-    "delta_ik",
+    "delta_kinematics/delta_ik",
     std::bind(&DeltaKinematics::inverseKinematics, this, std::placeholders::_1, std::placeholders::_2)
   );
 
   // Create ConvertToJointTrajectory server
   this->convert_to_joint_trajectory_server = create_service<ConvertToJointTrajectory>(
-    "convert_to_joint_trajectory",
+    "delta_kinematics/convert_to_joint_trajectory",
     std::bind(&DeltaKinematics::convertToJointTrajectory, this, std::placeholders::_1, std::placeholders::_2)
   );
 
   // Create ConvertToJointVelTrajectory server
   this->convert_to_joint_vel_trajectory_server = create_service<ConvertToJointVelTrajectory>(
-    "convert_to_joint_vel_trajectory",
+    "delta_kinematics/convert_to_joint_vel_trajectory",
     std::bind(&DeltaKinematics::convertToJointVelTrajectory, this, std::placeholders::_1, std::placeholders::_2)
   );
 
   // Wait for the set_joint_limits service to be available
-  this->set_joint_limits_client = create_client<SetJointLimits>("set_joint_limits");
+  this->set_joint_limits_client = create_client<SetJointLimits>("delta_motors/set_joint_limits");
   while (!this->set_joint_limits_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
@@ -92,10 +92,10 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   }
 
   // Create RobotConfig Publisher
-  this->robot_config_publisher = create_publisher<RobotConfig>("robot_config", 10);
+  this->robot_config_publisher = create_publisher<RobotConfig>("delta_robot/robot_config", 10);
 
   // Create subscribers for motor positions and velocities
-  this->motor_positions_sub = create_subscription<DeltaJoints>("motor_position_feedback", 10,
+  this->motor_positions_sub = create_subscription<DeltaJoints>("delta_motors/motor_position_feedback", 10,
     [this](const DeltaJoints::SharedPtr msg) -> void { // Update the motor positions
     this->robot_state.theta1 = msg->theta1;
     this->robot_state.theta2 = msg->theta2;
@@ -103,7 +103,7 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   }
   );
 
-  this->motor_velocities_sub = create_subscription<DeltaJointVels>("motor_velocity_feedback", 10,
+  this->motor_velocities_sub = create_subscription<DeltaJointVels>("delta_motors/motor_velocity_feedback", 10,
     [this](const DeltaJointVels::SharedPtr msg) -> void { // Update the motor velocities
     this->robot_state.theta1_vel = msg->theta1_vel;
     this->robot_state.theta2_vel = msg->theta2_vel;

@@ -53,7 +53,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
   // Subscriber to receive position commands and write them to the motors
   this->delta_joints_sub = this->create_subscription<DeltaJoints>(
-    "set_joints",
+    "delta_motors/set_joints",
     QOS_RKL10V,
     [this](const DeltaJoints::SharedPtr msg) -> void
   {
@@ -99,7 +99,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   );
 
   this->delta_joint_vels_sub = this->create_subscription<DeltaJointVels>(
-    "set_joint_vels",
+    "delta_motors/set_joint_vels",
     QOS_RKL10V,
     [this](const DeltaJointVels::SharedPtr msg) -> void
   {
@@ -176,7 +176,7 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
 
   // Service to set the joint limits
   this->set_joint_limits_server = create_service<SetJointLimits>(
-    "set_joint_limits",
+    "delta_motors/set_joint_limits",
     [this](
       const std::shared_ptr<SetJointLimits::Request> request,
       std::shared_ptr<SetJointLimits::Response> response) -> void
@@ -238,8 +238,8 @@ DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   );
 
   // Publishers for motor positions and velocities
-  this->motor_positions_pub = this->create_publisher<DeltaJoints>("motor_position_feedback", 10);
-  this->motor_velocities_pub = this->create_publisher<DeltaJointVels>("motor_velocity_feedback", 10);
+  this->motor_positions_pub = this->create_publisher<DeltaJoints>("delta_motors/motor_position_feedback", 10);
+  this->motor_velocities_pub = this->create_publisher<DeltaJointVels>("delta_motors/motor_velocity_feedback", 10);
 
   // Timer to publish the motor positions and velocities
   const double feedback_freq = 25.0; // [Hz]
