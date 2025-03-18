@@ -3,12 +3,8 @@
 
 // Include all the custom messages and services
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
-#include "deltarobot_interfaces/msg/fk_trajectory.hpp"
-#include "deltarobot_interfaces/msg/ik_trajectory.hpp"
 #include "deltarobot_interfaces/srv/delta_fk.hpp"
 #include "deltarobot_interfaces/srv/delta_ik.hpp"
-#include "deltarobot_interfaces/srv/play_fk_trajectory.hpp"
-#include "deltarobot_interfaces/srv/play_ik_trajectory.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
