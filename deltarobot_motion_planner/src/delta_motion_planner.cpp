@@ -25,7 +25,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   RCLCPP_INFO(get_logger(), "DeltaMotionPlanner node started");
 
   this->demo_traj_server = create_service<PlayDemoTraj>(
-    "play_demo_trajectory",
+    "delta_motion_planner/play_demo_trajectory",
     std::bind(&DeltaMotionPlanner::playDemoTrajectory, this, std::placeholders::_1, std::placeholders::_2)
   );
 
@@ -34,7 +34,6 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   this->joint_vel_pub = this->create_publisher<DeltaJointVels>("delta_motors/set_joint_vels", QOS_RKL10V);
 
   this->delta_ik_client = create_client<DeltaIK>("delta_kinematics/delta_ik");
-  // Wait until service is ready
   while (!this->delta_ik_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
@@ -44,7 +43,6 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   }
 
   this->delta_fk_client = create_client<DeltaFK>("delta_kinematics/delta_fk");
-  // Wait until service is ready
   while (!this->delta_fk_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
@@ -54,7 +52,6 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   }
 
   this->convert_to_joint_trajectory_client = create_client<ConvertToJointTrajectory>("delta_kinematics/convert_to_joint_trajectory");
-  // Wait until service is ready
   while (!this->convert_to_joint_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
@@ -64,7 +61,6 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   }
 
   this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("delta_kinematics/convert_to_joint_vel_trajectory");
-  // Wait until service is ready
   while (!this->convert_to_joint_vel_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
@@ -72,6 +68,36 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     }
     RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
   }
+
+  // Create service for MoveToPoint
+  this->move_to_point_server = create_service<MoveToPoint>(
+    "delta_motion_planner/move_to_point",
+    [this](const std::shared_ptr<MoveToPoint::Request> request, std::shared_ptr<MoveToPoint::Response> response) {
+    Point point = request->target;
+    this->moveToPoint(point);
+    response->success = true;
+  }
+  );
+
+  // Create service for MoveToConfiguration
+  this->move_to_configuration_server = create_service<MoveToConfiguration>(
+    "delta_motion_planner/move_to_configuration",
+    [this](const std::shared_ptr<MoveToConfiguration::Request> request, std::shared_ptr<MoveToConfiguration::Response> response) {
+    DeltaJoints joints = request->target_joint_angles;
+    this->moveToConfiguration(joints);
+    response->success = true;
+  }
+  );
+
+  const float demoDelay = 10; // Every demoDelay seconds, run the MSI demo trajectory
+  this->demo_timer = this->create_wall_timer(
+    std::chrono::duration<float>(demoDelay),
+    [this]() -> void {
+    // Create Trajectory
+    std::vector<Point> trajectory = this->pringleTrajectory();
+
+  }
+  );
 }
 
 void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms) {
@@ -135,6 +161,26 @@ void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
   (void)points;
 }
 
+void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
+  // Create a joint trajectory using the convert_to_joint_trajectory service
+  auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
+  convert_request->end_effector_trajectory = trajectory;
+
+  auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
+  // ---------- BEGIN_CITATION [1] ----------
+  auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
+    convert_request,
+    [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
+    auto response = future.get();
+    *joint_traj = response->joint_trajectory;
+
+    // Publish the joint trajectory to the motors with no delay
+    this->publishMotorCommands(*joint_traj, 0);
+  }
+  );
+  // ---------- END_CITATION [1] ----------
+}
+
 void DeltaMotionPlanner::playDemoTrajectory(
   std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response) {
 
@@ -162,34 +208,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
   }
   RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s", type.c_str());
 
-  // Create a joint trajectory using the convert_to_joint_trajectory service
-  auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
-  convert_request->end_effector_trajectory = trajectory;
-
-  auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-  // Call the convert_to_joint_trajectory service
-  // ---------- BEGIN_CITATION [1] ----------
-  auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
-    convert_request,
-    [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
-    auto response = future.get();
-    // RCLCPP_INFO(get_logger(), "Received response from convert_to_joint_trajectory service");
-    *joint_traj = response->joint_trajectory;
-
-    // Print the joint trajectory
-    RCLCPP_INFO(get_logger(), "Joint trajectory created with %ld points:", joint_traj->size());
-    // for (unsigned int i = 0; i < joint_traj->size(); i++) {
-    //   const auto& joints = joint_traj->at(i);
-    //   RCLCPP_INFO(get_logger(), "\t Joint Angles %d: (%.2f, %.2f, %.2f) [rad]", i + 1, joints.theta1, joints.theta2, joints.theta3);
-    // }
-
-    RCLCPP_INFO(get_logger(), "Publishing joint trajectory to motors");
-    // Publish the joint trajectory to the motors with a 50ms delay between each point
-    this->publishMotorCommands(*joint_traj, 50);
-  }
-  );
-  // ---------- END_CITATION [1] ----------
-
+  this->playTrajectory(trajectory);
 
   // Signal success
   response->success = true;
@@ -249,13 +268,6 @@ std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
     trajectory.push_back(intermediate_pos);
   }
 
-  // Log the created trajectory
-  RCLCPP_INFO(get_logger(), "Trajectory created with %ld points:", trajectory.size());
-  // for (int i = 0; i < num_points; i++) {
-  //   Point p = trajectory[i];
-  //   RCLCPP_INFO(get_logger(), "\t EE Point %d: (%.2f, %.2f, %.2f)", i, p.x, p.y, p.z);
-  // }
-
   return trajectory;
 }
 
@@ -287,13 +299,6 @@ std::vector<Point> DeltaMotionPlanner::pringleTrajectory() {
     trajectory[i].y = y_circle[i];
     trajectory[i].z = z_circle[i];
   }
-
-  // Log the created trajectory
-  RCLCPP_INFO(get_logger(), "EE Trajectory created with %ld points:", trajectory.size());
-  // for (int i = 0; i < num_points; i++) {
-  //   Point p = trajectory[i];
-  //   RCLCPP_INFO(get_logger(), "\t EE Point %d: (%.2f, %.2f, %.2f)", i + 1, p.x, p.y, p.z);
-  // }
 
   return trajectory;
 }
@@ -369,13 +374,6 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
     trajectory.push_back(intermediate_pos);
   }
 
-  // Log the created trajectory
-  RCLCPP_INFO(get_logger(), "EE Trajectory created with %ld points:", trajectory.size());
-  // for (int i = 0; i < trajectory.size(); i++) {
-  //   Point p = trajectory[i];
-  //   RCLCPP_INFO(get_logger(), "\t EE Point %d: (%.2f, %.2f, %.2f)", i + 1, p.x, p.y, p.z);
-  // }
-
   return trajectory;
 }
 
@@ -407,13 +405,6 @@ std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
     trajectory[i].y = y_circle[i];
     trajectory[i].z = z_circle[i];
   }
-
-  // Log the created trajectory
-  RCLCPP_INFO(get_logger(), "EE Trajectory created with %ld points:", trajectory.size());
-  // for (int i = 0; i < num_points; i++) {
-  //   Point p = trajectory[i];
-  //   RCLCPP_INFO(get_logger(), "\t EE Point %d: (%.2f, %.2f, %.2f)", i + 1, p.x, p.y, p.z);
-  // }
 
   return trajectory;
 }

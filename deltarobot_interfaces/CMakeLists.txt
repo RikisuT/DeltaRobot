@@ -42,6 +42,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ConvertToJointTrajectory.srv"
   "srv/ConvertToJointVelTrajectory.srv"
   "srv/SetJointLimits.srv"
+  "srv/MoveToPoint.srv"
+  "srv/MoveToConfiguration.srv"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 
