@@ -91,7 +91,8 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
 
   // Create service for MotionDemo
   this->motion_demo_server = create_service<MotionDemo>(
-    "delta_motion_planner/motion_demo", [this](const std::shared_ptr<MotionDemo::Request> request, std::shared_ptr<MotionDemo::Response> response)
+    "delta_motion_planner/motion_demo",
+    [this](const std::shared_ptr<MotionDemo::Request> request, [[maybe_unused]] std::shared_ptr<MotionDemo::Response> response)
   {this->playDemo = request->start;}
   );
 
