@@ -89,13 +89,23 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   }
   );
 
-  const float demoDelay = 10; // Every demoDelay seconds, run the MSI demo trajectory
+  // Create service for MotionDemo
+  this->motion_demo_server = create_service<MotionDemo>(
+    "delta_motion_planner/motion_demo", [this](const std::shared_ptr<MotionDemo::Request> request, std::shared_ptr<MotionDemo::Response> response)
+  {this->playDemo = request->start;}
+  );
+
+  const float demoDelay = 30; // Every demoDelay seconds, run the MSI demo trajectory
   this->demo_timer = this->create_wall_timer(
     std::chrono::duration<float>(demoDelay),
     [this]() -> void {
-    // Create Trajectory
-    std::vector<Point> trajectory = this->pringleTrajectory();
+    if (this->playDemo) {
+      RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory");
 
+      this->playTrajectory(this->pringleTrajectory());
+      this->playTrajectory(this->circleTrajectory());
+      this->playTrajectory(this->axesTrajectory());
+    }
   }
   );
 }
@@ -174,8 +184,8 @@ void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
     auto response = future.get();
     *joint_traj = response->joint_trajectory;
 
-    // Publish the joint trajectory to the motors with no delay
-    this->publishMotorCommands(*joint_traj, 0);
+    // Publish the joint trajectory to the motors with small delay
+    this->publishMotorCommands(*joint_traj, 50);
   }
   );
   // ---------- END_CITATION [1] ----------
@@ -186,7 +196,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
 
   std::string type = request->type.data;
   std::vector<Point> trajectory;
-  const std::vector<std::string> available_demos = {"up_down", "pringle", "axes", "circle"};
+  const std::vector<std::string> available_demos = {"up_down", "pringle", "axes", "circle", "scan"};
   if (type == "up_down") {
     trajectory = this->straightUpDownTrajectory();
   } else if (type == "pringle") {

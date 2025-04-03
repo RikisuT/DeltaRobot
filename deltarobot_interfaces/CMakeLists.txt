@@ -44,6 +44,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SetJointLimits.srv"
   "srv/MoveToPoint.srv"
   "srv/MoveToConfiguration.srv"
+  "srv/MotionDemo.srv"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 

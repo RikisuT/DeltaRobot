@@ -10,6 +10,7 @@
 #include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
 #include "deltarobot_interfaces/srv/move_to_point.hpp"
 #include "deltarobot_interfaces/srv/move_to_configuration.hpp"
+#include "deltarobot_interfaces/srv/motion_demo.hpp"
 #include "geometry_msgs/msg/point.hpp"
 
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
@@ -22,6 +23,7 @@ using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using MoveToPoint = deltarobot_interfaces::srv::MoveToPoint;
 using MoveToConfiguration = deltarobot_interfaces::srv::MoveToConfiguration;
+using MotionDemo = deltarobot_interfaces::srv::MotionDemo;
 
 class DeltaMotionPlanner : public rclcpp::Node {
 public:
@@ -29,11 +31,14 @@ public:
   ~DeltaMotionPlanner() = default;
 
 private:
+  bool playDemo = false;
+
   rclcpp::Publisher<DeltaJoints>::SharedPtr joint_pub;
   rclcpp::Publisher<DeltaJointVels>::SharedPtr joint_vel_pub;
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
   rclcpp::Service<MoveToPoint>::SharedPtr move_to_point_server;
   rclcpp::Service<MoveToConfiguration>::SharedPtr move_to_configuration_server;
+  rclcpp::Service<MotionDemo>::SharedPtr motion_demo_server;
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
   rclcpp::Client<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_client;
   rclcpp::Client<DeltaIK>::SharedPtr delta_ik_client;
