@@ -55,11 +55,14 @@ private:
   void playTrajectory(const std::vector<Point> trajectory);
   void playDemoTrajectory(const std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response);
 
+  std::vector<Point> readCSV(const std::string& fileName);
+
   std::vector<Point> straightUpDownTrajectory();
   std::vector<Point> pringleTrajectory();
   std::vector<Point> axesTrajectory();
   std::vector<Point> circleTrajectory();
   std::vector<Point> scanTrajectory();
+  std::vector<Point> randomSampleTrajectory(const int numPoints = 8);
 };
 
 #endif // !DELTA_MOTION_PLANNER_HPP_

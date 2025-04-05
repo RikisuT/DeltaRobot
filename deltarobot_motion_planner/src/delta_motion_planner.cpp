@@ -106,6 +106,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
       this->playTrajectory(this->pringleTrajectory());
       this->playTrajectory(this->circleTrajectory());
       this->playTrajectory(this->axesTrajectory());
+      this->playTrajectory(this->randomSampleTrajectory());
     }
   }
   );
@@ -227,37 +228,7 @@ void DeltaMotionPlanner::playDemoTrajectory(
 
 std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
   // Scan trajectory is saved in "scan_trajectory.csv" file
-  const std::string user = std::getenv("USER");
-  const std::string file_path = "/home/" + user + "/DeltaRobot/scan_trajectory.csv";
-  // The csv file has 3 columns: X, Y, Z
-  std::ifstream file(file_path);
-  if (!file.is_open()) {
-    RCLCPP_ERROR(get_logger(), "Failed to open file: %s", file_path.c_str());
-    return {};
-  }
-  std::vector<Point> trajectory;
-  std::string line;
-  bool first_line = true; // Skip the header
-  while (std::getline(file, line)) {
-    if (first_line) {
-      first_line = false;
-      continue;
-    }
-    std::istringstream iss(line);
-    std::string value;
-    Point p;
-
-    std::getline(iss, value, ',');
-    p.x = std::stod(value);
-    std::getline(iss, value, ',');
-    p.y = std::stod(value);
-    std::getline(iss, value, ',');
-    p.z = std::stod(value);
-
-    trajectory.push_back(p);
-  }
-  file.close();
-  return trajectory;
+  return this->readCSV("scan_trajectory.csv");
 }
 
 std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
@@ -417,6 +388,54 @@ std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
     trajectory[i].z = z_circle[i];
   }
 
+  return trajectory;
+}
+
+std::vector<Point> DeltaMotionPlanner::randomSampleTrajectory(cont int numPoints) {
+  // Get all points from a random sample from random_points.csv
+  std::vector<Point> allPoints = this->readCSV("random_points.csv");
+
+  // Randomly sample numPoints points from allPoints
+  std::vector<Point> sampledPoints;
+  std::srand(std::time(0)); // Seed for random number generation
+  for (int i = 0; i < numPoints; ++i) {
+    int randomIndex = std::rand() % allPoints.size();
+    sampledPoints.push_back(allPoints[randomIndex]);
+  }
+  return sampledPoints;
+}
+
+std::vector<Point> DeltaMotionPlanner::readCSV(const std::string& fileName) {
+  const std::string user = std::getenv("USER");
+  const std::string file_path = "/home/" + user + "/DeltaRobot/" + fileName;
+  // The csv file has 3 columns: X, Y, Z
+  std::ifstream file(fileName);
+  if (!file.is_open()) {
+    RCLCPP_ERROR(get_logger(), "Failed to open file: %s", fileName.c_str());
+    return {};
+  }
+  std::vector<Point> trajectory;
+  std::string line;
+  bool first_line = true; // Skip the header
+  while (std::getline(file, line)) {
+    if (first_line) {
+      first_line = false;
+      continue;
+    }
+    std::istringstream iss(line);
+    std::string value;
+    Point p;
+
+    std::getline(iss, value, ',');
+    p.x = std::stod(value);
+    std::getline(iss, value, ',');
+    p.y = std::stod(value);
+    std::getline(iss, value, ',');
+    p.z = std::stod(value);
+
+    trajectory.push_back(p);
+  }
+  file.close();
   return trajectory;
 }
 
