@@ -62,7 +62,7 @@ private:
   std::vector<Point> axesTrajectory();
   std::vector<Point> circleTrajectory();
   std::vector<Point> scanTrajectory();
-  std::vector<Point> randomSampleTrajectory(const int numPoints = 8);
+  std::vector<Point> randomSampleTrajectory(const int numPoints);
 };
 
 #endif // !DELTA_MOTION_PLANNER_HPP_

@@ -96,7 +96,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   {this->playDemo = request->start;}
   );
 
-  const float demoDelay = 30; // Every demoDelay seconds, run the MSI demo trajectory
+  const float demoDelay = 32; // Every demoDelay seconds, run the MSI demo trajectory
   this->demo_timer = this->create_wall_timer(
     std::chrono::duration<float>(demoDelay),
     [this]() -> void {
@@ -106,7 +106,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
       this->playTrajectory(this->pringleTrajectory());
       this->playTrajectory(this->circleTrajectory());
       this->playTrajectory(this->axesTrajectory());
-      this->playTrajectory(this->randomSampleTrajectory());
+      this->playTrajectory(this->randomSampleTrajectory(20));
     }
   }
   );
@@ -391,7 +391,7 @@ std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
   return trajectory;
 }
 
-std::vector<Point> DeltaMotionPlanner::randomSampleTrajectory(cont int numPoints) {
+std::vector<Point> DeltaMotionPlanner::randomSampleTrajectory(const int numPoints) {
   // Get all points from a random sample from random_points.csv
   std::vector<Point> allPoints = this->readCSV("random_points.csv");
 
