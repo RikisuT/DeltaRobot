@@ -1,9 +1,11 @@
 # DeltaRobot
-Author: Sharwin Patil (*2025 MSR Winter Project*)
+Author: Sharwin Patil *(2025 MSR Winter Project)*
 
 <div style="text-align: center;">
   <img src="images/DeltaCircleTrajectory.gif" alt="Delta Robot Workspace" style="border-radius: 15px; width: 300px; height: 300px;">
 </div>
+
+_Check out [my portfolio post](https://www.sharwinpatil.info/posts/delta-robot/) for more media and information._
 
 # ROS Package Structure
 
