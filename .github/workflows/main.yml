@@ -42,7 +42,7 @@ jobs:
     steps:
       # Set up ROS2 environment
       - name: Setup ROS2 Environment
-        uses: ros-tooling/setup-ros@0.7.9
+        uses: ros-tooling/setup-ros@0.7.15
 
       - name: Install ROS Jazzy dependencies
         run: |
