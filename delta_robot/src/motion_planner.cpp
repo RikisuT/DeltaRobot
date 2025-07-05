@@ -1,5 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
-#include "delta_motion_planner.hpp"
+#include "motion_planner.hpp"
 
 // Include all the custom messages and services
 #include "deltarobot_interfaces/msg/delta_joints.hpp"

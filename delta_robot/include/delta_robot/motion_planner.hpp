@@ -1,5 +1,5 @@
-#ifndef DELTA_MOTION_PLANNER_HPP_
-#define DELTA_MOTION_PLANNER_HPP_
+#ifndef MOTION_PLANNER_HPP_
+#define MOTION_PLANNER_HPP_
 
 #include "rclcpp/rclcpp.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
@@ -65,4 +65,4 @@ private:
   std::vector<Point> randomSampleTrajectory(const int numPoints);
 };
 
-#endif // !DELTA_MOTION_PLANNER_HPP_
+#endif // !MOTION_PLANNER_HPP_

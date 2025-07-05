@@ -1,5 +1,5 @@
-#ifndef DELTA_MOTOR_CONTROL_HPP_
-#define DELTA_MOTOR_CONTROL_HPP_
+#ifndef MOTOR_CONTROL_HPP_
+#define MOTOR_CONTROL_HPP_
 
 #include <cstdio>
 #include <memory>
@@ -49,4 +49,4 @@ private:
   int convertToMotorVelocity(float theta_vel);
 };
 
-#endif  // DELTA_MOTOR_CONTROL_HPP_
+#endif  // MOTOR_CONTROL_HPP_

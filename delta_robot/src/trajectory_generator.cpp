@@ -1,5 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
-#include "delta_trajectory_generator.hpp"
+#include "trajectory_generator.hpp"
 
 // Include all the custom messages and services
 #include "deltarobot_interfaces/msg/delta_joints.hpp"

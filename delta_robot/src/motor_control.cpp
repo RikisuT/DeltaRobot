@@ -1,4 +1,4 @@
-#include "delta_motor_control.hpp"
+#include "motor_control.hpp"
 
 // Control table address for X series(except XL - 320)
 #define ADDR_OPERATING_MODE 11
@@ -13,7 +13,7 @@
 #define ADDR_LED 65
 
 // 3 is for Position Control Mode, 1 is for Velocity Control Mode
-#define POSITION_CTRL 3  
+#define POSITION_CTRL 3
 #define VELOCITY_CTRL 1
 
 // Protocol version
@@ -32,7 +32,7 @@
 // Converting from rad/s to rev/min
 #define RAD_S_TO_REV_MIN (60.0f * (1.0f / (2.0f * M_PI)))
 // The velocity limit range is (0 ~ 1023) where each unit is 0.229 rev/min
-#define VEL_UNIT 0.229f // [rev/min] 
+#define VEL_UNIT 0.229f // [rev/min]
 
 DeltaMotorControl::DeltaMotorControl() : Node("delta_motor_control") {
   RCLCPP_INFO(this->get_logger(), "DeltaMotorControl Started");

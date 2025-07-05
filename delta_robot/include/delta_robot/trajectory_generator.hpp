@@ -1,5 +1,5 @@
-#ifndef DELTA_TRAJECTORY_GENERATOR_HPP_
-#define DELTA_TRAJECTORY_GENERATOR_HPP_
+#ifndef TRAJECTORY_GENERATOR_HPP_
+#define TRAJECTORY_GENERATOR_HPP_
 
 #include "rclcpp/rclcpp.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
@@ -15,11 +15,11 @@ using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVe
 using Point = geometry_msgs::msg::Point;
 
 class DeltaTrajectoryGenerator : public rclcpp::Node {
-  public:
+public:
   DeltaTrajectoryGenerator();
   ~DeltaTrajectoryGenerator() = default;
-  
-  private:
+
+private:
   // Create a IK client to call the DeltaIK Service
   rclcpp::Client<DeltaIK>::SharedPtr delta_ik_client;
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
@@ -27,4 +27,4 @@ class DeltaTrajectoryGenerator : public rclcpp::Node {
 
 };
 
-#endif // !DELTA_TRAJECTORY_GENERATOR_HPP_
+#endif // !TRAJECTORY_GENERATOR_HPP_
