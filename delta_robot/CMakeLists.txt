@@ -37,8 +37,8 @@ ament_target_dependencies(kinematics rclcpp deltarobot_interfaces geometry_msgs)
 target_link_libraries(kinematics ${deltarobot_interfaces_LIBRARIES})
 
 # MotionPlanner Node
-add_executable(delta_motion_planner src/delta_motion_planner.cpp)
-ament_target_dependencies(delta_motion_planner rclcpp geometry_msgs deltarobot_interfaces kalman_filter)
+add_executable(delta_motion_planner src/motion_planner.cpp)
+ament_target_dependencies(delta_motion_planner rclcpp geometry_msgs deltarobot_interfaces delta_robot_sensors)
 target_link_libraries(delta_motion_planner ${deltarobot_interfaces_LIBRARIES})
 
 # Scanner Node
@@ -47,11 +47,11 @@ ament_target_dependencies(range_scanner rclcpp std_msgs sensor_msgs geometry_msg
 target_link_libraries(range_scanner ${deltarobot_interfaces_LIBRARIES})
 
 # Delta Motor Control Node
-add_executable(delta_motor_control src/delta_motor_control.cpp)
+add_executable(delta_motor_control src/motor_control.cpp)
 ament_target_dependencies(delta_motor_control rclcpp dynamixel_sdk deltarobot_interfaces)
 
 # Delta Trajectory Generator Node
-add_executable(delta_trajectory_generator src/delta_trajectory_generator.cpp)
+add_executable(delta_trajectory_generator src/trajectory_generator.cpp)
 ament_target_dependencies(delta_trajectory_generator rclcpp deltarobot_interfaces geometry_msgs)
 target_link_libraries(delta_trajectory_generator ${deltarobot_interfaces_LIBRARIES})
 
