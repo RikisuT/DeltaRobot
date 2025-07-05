@@ -19,19 +19,19 @@ jobs:
           sudo apt -yq update
           sudo apt -yq install ssh
 
-      # - name: Set up SSH key
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
-      #     chmod 600 ~/.ssh/id_rsa
-      #     ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-      #     chmod 644 ~/.ssh/known_hosts
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
-        # with:
-        #   ssh-key: "${{secrets.SSH_PRIVATE_KEY}}"
+        with:
+          ssh-key: "${{secrets.SSH_PRIVATE_KEY}}"
       
       # - name: Update Git Submodules
       #   run: git submodule update --init --recursive
