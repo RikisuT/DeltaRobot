@@ -1,11 +1,11 @@
 <launch>
-  <node pkg="kalman_filter" exec="VL53L1X_Sensor" name="tof_sensor" output="screen">
-    <param from="$(find-pkg-share kalman_filter)/config/sensors_config.yaml"/>
+  <node pkg="delta_robot_sensors" exec="VL53L1X_Sensor" name="tof_sensor" output="screen">
+    <param from="$(find-pkg-share delta_robot_sensors)/config/sensors_config.yaml"/>
   </node>
-  <node pkg="kalman_filter" exec="BNO055_Sensor" name="imu_sensor" output="screen">
-    <param from="$(find-pkg-share kalman_filter)/config/sensors_config.yaml"/>
+  <node pkg="delta_robot_sensors" exec="BNO055_Sensor" name="imu_sensor" output="screen">
+    <param from="$(find-pkg-share delta_robot_sensors)/config/sensors_config.yaml"/>
   </node>
-  <node pkg="kalman_filter" exec="kalman" name="kalman" output="screen">
-    <param from="$(find-pkg-share kalman_filter)/config/sensors_config.yaml"/>
+  <node pkg="delta_robot_sensors" exec="kalman" name="kalman" output="screen">
+    <param from="$(find-pkg-share delta_robot_sensors)/config/sensors_config.yaml"/>
   </node>
 </launch>
