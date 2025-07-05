@@ -18,7 +18,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(dynamixel_sdk REQUIRED)
 find_package(deltarobot_interfaces REQUIRED)
-find_package(kalman_filter REQUIRED)
+find_package(delta_robot_sensors REQUIRED)
 
 # Other Dependencies
 find_package(ament_cmake REQUIRED)

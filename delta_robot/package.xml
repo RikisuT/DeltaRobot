@@ -12,8 +12,11 @@
   <!-- CPP Dependencies -->
   <depend>Eigen3</depend>
 
-  <!-- ROS Dependencies -->
+  <!-- Delta Robot Packages -->
   <depend>deltarobot_interfaces</depend>
+  <depend>delta_robot_sensors</depend>
+
+  <!-- ROS Dependencies -->
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
