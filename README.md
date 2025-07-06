@@ -1,23 +1,21 @@
 # DeltaRobot
 Author: Sharwin Patil *(2025 MSR Winter Project)*
 
-<div style="text-align: center;">
-  <img src="images/DeltaCircleTrajectory.gif" alt="Delta Robot Workspace" style="border-radius: 15px; width: 300px; height: 300px;">
-</div>
+<p align="center">
+  <img src="images/DeltaCircleTrajectory.gif" alt="Delta Robot Trajectory" style="border-radius: 15px; width: 49%; display: inline-block; margin-right: 2%;">
+  <img src="images/robot_white_background.png" alt="Delta Robot Workspace" style="border-radius: 15px; width: 30%; display: inline-block;">
+</p>
+
 
 _Check out [my portfolio post](https://www.sharwinpatil.info/posts/delta-robot/) for more media and information._
 
 # ROS Package Structure
 
-## Motion Planner
-The `deltarobot_motion_planner` package contains movement functions and is the top-level package to **launch the entire project**. Pre-programmed position and velocity trajectories are built in for running movement demos.
+## `delta_robot` Package
+Contains main delta robot nodes that handle: kinematics, motor control, trajectory generation, and motion planning.
 
-## Trajectory Generator
-The `deltarobot_trajectory_generator` package is responsible for generating trajectories for the robot to follow. Currently, some hardcoded trajectories are baked into the package, but the package will be extended to offer parametric trajectory generation, resulting in position-velocity trajectories.
+## `deltarobot_interfaces` Package
+Contains all custom ROS messages and service used by the nodes in `delta_robot`.
 
-## Kinematics Solver
-The `deltarobot_kinematics` package enables several kinematic capabilities for any delta robot. The package accepts a config file that specifies the robot's geometry, link lengths, and joint limits. Forward and Inverse Kinematics are implemented here as well as the Jacobian for creating joint-velocity trajectories from position trajectories.
-
-## Motor Controller
-The `deltarobot_motorcontrol` package is responsible for interfacing (using the hardware) with the 3 motors controlling the robot. This package implements
-interfacing with dynamixel motors but can be extended to other motor types as long as the inter-node connections are maintained.
+## `delta_robot_sensors` Package
+An external package for the sensors that were used on the original delta robot including a 9-DoF IMU and a Time-of-Flight range sensor.
