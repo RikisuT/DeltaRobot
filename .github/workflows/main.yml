@@ -10,7 +10,7 @@ on:
       - main
 
 jobs:
-  build:
+  build-ros-workspace:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,7 +27,6 @@ jobs:
           ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
@@ -36,7 +35,6 @@ jobs:
       # - name: Update Git Submodules
       #   run: git submodule update --init --recursive
 
-      # Set up ROS2 environment
       - name: Setup ROS2 Environment
         uses: ros-tooling/setup-ros@0.7.15
         with:
@@ -53,3 +51,11 @@ jobs:
         run: |
           source /opt/ros/jazzy/setup.bash
           colcon build
+          source install/setup.bash
+
+      - name: Colcon Test
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          colcon test
+          colcon test-result --verbose
