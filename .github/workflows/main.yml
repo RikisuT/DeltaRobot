@@ -1,0 +1,61 @@
+name: Build Workspace
+
+# Pushing to main or PR targeting main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-ros-workspace:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Linux dependencies
+        run: |
+          sudo apt -yq update
+          sudo apt -yq install ssh
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ssh-key: "${{secrets.SSH_PRIVATE_KEY}}"
+
+      # - name: Update Git Submodules
+      #   run: git submodule update --init --recursive
+
+      - name: Setup ROS2 Environment
+        uses: ros-tooling/setup-ros@0.7.15
+        with:
+          required-ros-distributions: jazzy
+
+      - name: Install ROS Jazzy dependencies
+        run: |
+          export ROS_DISTRO=jazzy
+          source /opt/ros/jazzy/setup.bash
+          rosdep update --rosdistro jazzy
+          rosdep install --from-paths . --ignore-src -r -y
+
+      - name: Colcon Build
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build
+          source install/setup.bash
+
+      - name: Colcon Test
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          colcon test
+          colcon test-result --verbose
