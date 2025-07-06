@@ -1,0 +1,17 @@
+tof_sensor:
+  ros__parameters:
+    sensor_timeout_ms: 500 # [ms]
+    sensor_frequency: 48.0 # [Hz]
+    sensor_timing_budget_ms: 50 # [ms]
+imu_sensor:
+  ros__parameters:
+    sensor_frequency: 100.0 # [Hz]
+state_aggregator:
+  ros__parameters:
+    timer_frequency: 100.0 # [Hz]
+    ground_to_base_height: 400.81087 # [mm]
+    tof_offset_mm: 8.17 # [mm]
+    range_filter_alpha: 0.15
+    range_filter_beta: 0.005
+    temp_filter_alpha: 0.8
+    temp_filter_beta: 0.01
