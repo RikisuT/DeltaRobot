@@ -2,7 +2,7 @@
 Author: Sharwin Patil *(2025 MSR Winter Project)*
 
 <p align="center">
-  <img src="images/DeltaCircleTrajectory.gif" alt="Delta Robot Trajectory" style="border-radius: 15px; width: 49%; display: inline-block; margin-right: 2%;">
+  <img src="images/MSI_demo_desk.jpg" alt="Demo Table at Museum of Science" style="border-radius: 15px; width: 49%; display: inline-block; margin-right: 2%;">
   <img src="images/robot_white_background.png" alt="Delta Robot Workspace" style="border-radius: 15px; width: 30%; display: inline-block;">
 </p>
 
