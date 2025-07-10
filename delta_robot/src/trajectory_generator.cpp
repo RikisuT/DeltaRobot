@@ -1,5 +1,5 @@
 /// @file trajectory_generator.cpp
-/// @brief Trajectory Generation Implementation for Delta Robot
+/// @brief Trajectory Generation Implementation for Delta Robot [Deprecated]
 ///
 /// PARAMETERS:
 ///   None
