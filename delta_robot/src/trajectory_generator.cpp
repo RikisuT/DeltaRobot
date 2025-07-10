@@ -1,3 +1,23 @@
+/// @file trajectory_generator.cpp
+/// @brief Trajectory Generation Implementation for Delta Robot
+///
+/// PARAMETERS:
+///   None
+///
+/// PUBLISHERS:
+///   None
+///
+/// SUBSCRIBERS:
+///   None
+///
+/// SERVICES:
+///   None
+///
+/// CLIENTS:
+///   ~/delta_kinematics/delta_ik (deltarobot_interfaces::srv::DeltaIK): Client to compute inverse kinematics for trajectory points
+///   ~/delta_kinematics/convert_to_joint_trajectory (deltarobot_interfaces::srv::ConvertToJointTrajectory): Client to convert end effector trajectory to joint trajectory
+///   ~/delta_kinematics/convert_to_joint_vel_trajectory (deltarobot_interfaces::srv::ConvertToJointVelTrajectory): Client to convert end effector velocity trajectory to joint velocity trajectory
+
 #include "rclcpp/rclcpp.hpp"
 #include "trajectory_generator.hpp"
 

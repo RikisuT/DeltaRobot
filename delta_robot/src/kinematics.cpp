@@ -9,11 +9,25 @@
 ///   end_effector_side_length (float64): The side length of the equilateral triangle defining the end effector [mm]
 ///   joint_min (float64): The minimum joint angle [rad]
 ///   joint_max (float64): The maximum joint angle [rad]
+///   max_joint_velocity (float64): The maximum joint velocity [rad/s]
+///   robot_config_freq (float64): The frequency at which the robot configuration is published [Hz]
+///
+/// PUBLISHERS:
+///   ~/delta_robot/robot_config (deltarobot_interfaces::msg::RobotConfig): Publishes the current robot configuration including joint angles/velocities and end effector position
+///
+/// SUBSCRIBERS:
+///   ~/delta_motors/motor_position_feedback (deltarobot_interfaces::msg::DeltaJoints): Subscribes to the current joint angles of the delta robot
+///   ~/delta_motors/motor_velocity_feedback (deltarobot_interfaces::msg::DeltaJointVels): Subscribes to the current joint velocities of the delta robot
 ///
 /// SERVICES:
 ///   ~/delta_fk (deltarobot_interfaces::srv::DeltaFK): Computes the end effector position given the joint angles (forward kinematics)
 ///   ~/delta_ik (deltarobot_interfaces::srv::DeltaIK): Computes the joint angles given the end effector position (inverse kinematics)
 ///   ~/convert_to_joint_trajectory (deltarobot_interfaces::srv::ConvertToJointTrajectory): Converts an end effector trajectory to a joint trajectory
+///   ~/convert_to_joint_vel_trajectory (deltarobot_interfaces::srv::ConvertToJointVelTrajectory): Converts an end effector velocity trajectory to a joint velocity trajectory
+///
+/// CLIENTS:
+///  ~/delta_motors/set_joint_limits (deltarobot_interfaces::srv::SetJointLimits): Client to set the joint limits for the delta robot motors
+
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/node_options.hpp"

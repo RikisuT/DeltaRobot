@@ -1,3 +1,23 @@
+/// @file motor_control.cpp
+/// @brief Motor Control Implementation for Delta Robot using Dynamixel X-Series Motors
+///
+/// PARAMETERS:
+///   qos_depth (int8): The depth of the QoS queue for message reliability (default: 10)
+///
+/// PUBLISHERS:
+///   ~/delta_motors/motor_position_feedback (deltarobot_interfaces::msg::DeltaJoints): Publishes real-time motor position feedback in radians
+///   ~/delta_motors/motor_velocity_feedback (deltarobot_interfaces::msg::DeltaJointVels): Publishes real-time motor velocity feedback in rad/s
+///
+/// SUBSCRIBERS:
+///   ~/delta_motors/set_joints (deltarobot_interfaces::msg::DeltaJoints): Subscribes to joint position commands to control motor positions
+///   ~/delta_motors/set_joint_vels (deltarobot_interfaces::msg::DeltaJointVels): Subscribes to joint velocity commands to control motor velocities
+///
+/// SERVICES:
+///   ~/delta_motors/set_joint_limits (deltarobot_interfaces::srv::SetJointLimits): Service to configure motor position and velocity limits
+///
+/// CLIENTS:
+///   None
+
 #include "motor_control.hpp"
 
 // Control table address for X series(except XL - 320)

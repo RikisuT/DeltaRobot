@@ -1,3 +1,28 @@
+/// @file motion_planner.cpp
+/// @brief Motion Planning Implementation for Delta Robot
+///
+/// PARAMETERS:
+///   None
+///
+/// PUBLISHERS:
+///   ~/delta_motors/set_joints (deltarobot_interfaces::msg::DeltaJoints): Publishes joint position commands to the delta robot motors
+///   ~/delta_motors/set_joint_vels (deltarobot_interfaces::msg::DeltaJointVels): Publishes joint velocity commands to the delta robot motors
+///
+/// SUBSCRIBERS:
+///   None
+///
+/// SERVICES:
+///   ~/delta_motion_planner/play_demo_trajectory (deltarobot_interfaces::srv::PlayDemoTrajectory): Service to play predefined demonstration trajectories (up_down, pringle, axes, circle, scan)
+///   ~/delta_motion_planner/move_to_point (deltarobot_interfaces::srv::MoveToPoint): Service to move the end effector to a specific 3D point
+///   ~/delta_motion_planner/move_to_configuration (deltarobot_interfaces::srv::MoveToConfiguration): Service to move the robot to a specific joint configuration
+///   ~/delta_motion_planner/motion_demo (deltarobot_interfaces::srv::MotionDemo): Service to start/stop the automatic demo mode
+///
+/// CLIENTS:
+///   ~/delta_kinematics/delta_ik (deltarobot_interfaces::srv::DeltaIK): Client to compute inverse kinematics (joint angles from end effector position)
+///   ~/delta_kinematics/delta_fk (deltarobot_interfaces::srv::DeltaFK): Client to compute forward kinematics (end effector position from joint angles)
+///   ~/delta_kinematics/convert_to_joint_trajectory (deltarobot_interfaces::srv::ConvertToJointTrajectory): Client to convert end effector trajectory to joint trajectory
+///   ~/delta_kinematics/convert_to_joint_vel_trajectory (deltarobot_interfaces::srv::ConvertToJointVelTrajectory): Client to convert end effector velocity trajectory to joint velocity trajectory
+
 #include "rclcpp/rclcpp.hpp"
 #include "motion_planner.hpp"
 
