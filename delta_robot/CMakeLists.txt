@@ -26,6 +26,7 @@ find_package(Eigen3 REQUIRED)
 find_package(Doxygen)
 
 include_directories(
+  include
   include/delta_robot
   ${deltarobot_interfaces_INCLUDE_DIRS}
   ${Eigen3_INCLUDE_DIRS}
@@ -37,9 +38,9 @@ ament_target_dependencies(kinematics rclcpp deltarobot_interfaces geometry_msgs)
 target_link_libraries(kinematics ${deltarobot_interfaces_LIBRARIES})
 
 # MotionPlanner Node
-add_executable(delta_motion_planner src/motion_planner.cpp)
-ament_target_dependencies(delta_motion_planner rclcpp geometry_msgs deltarobot_interfaces delta_robot_sensors)
-target_link_libraries(delta_motion_planner ${deltarobot_interfaces_LIBRARIES})
+add_executable(motion_planner src/motion_planner.cpp)
+ament_target_dependencies(motion_planner rclcpp geometry_msgs deltarobot_interfaces delta_robot_sensors)
+target_link_libraries(motion_planner ${deltarobot_interfaces_LIBRARIES})
 
 # Scanner Node
 add_executable(range_scanner src/range_scanner.cpp)
@@ -58,7 +59,7 @@ target_link_libraries(delta_trajectory_generator ${deltarobot_interfaces_LIBRARI
 # Install
 install(TARGETS
   kinematics
-  delta_motion_planner
+  motion_planner
   range_scanner
   delta_motor_control
   delta_trajectory_generator
@@ -77,19 +78,19 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
+
   # the following line skips cpplint (only works in a git repo)
   # comment the line when this package is in a git repo and when
   # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
-
 
 # Building documentation should be optional.
 # To build documentation pass -DBUILD_DOCS=ON when generating the build system
