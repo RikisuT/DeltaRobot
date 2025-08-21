@@ -9,6 +9,8 @@ Author: Sharwin Patil *(2025 MSR Winter Project)*
 
 _Check out [my portfolio post](https://www.sharwinpatil.info/posts/delta-robot/) for more media and information._
 
+[![wakatime](https://wakatime.com/badge/user/b25c3469-3f3c-4aff-90ef-5723a788454c/project/c9d6563e-f5b2-4049-b33c-ff699139a47a.svg)](https://wakatime.com/badge/user/b25c3469-3f3c-4aff-90ef-5723a788454c/project/c9d6563e-f5b2-4049-b33c-ff699139a47a)
+
 # ROS Package Structure
 
 ## `delta_robot` Package
