@@ -72,6 +72,14 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   this->MaxJointVel = this->get_parameter("max_joint_velocity").as_double();
   const double robot_config_freq = this->get_parameter("robot_config_freq").as_double();
 
+  // Initialize robot_state with safe 45 degree angles to prevent FK failure on startup
+  this->robot_state.theta1 = 0.785;
+  this->robot_state.theta2 = 0.785;
+  this->robot_state.theta3 = 0.785;
+  this->robot_state.theta1_vel = 0.0;
+  this->robot_state.theta2_vel = 0.0;
+  this->robot_state.theta3_vel = 0.0;
+
   // Create FK and IK servers
   this->delta_fk_server = create_service<DeltaFK>(
     "delta_kinematics/delta_fk",
@@ -97,12 +105,15 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
 
   // Wait for the set_joint_limits service to be available
   this->set_joint_limits_client = create_client<SetJointLimits>("delta_motors/set_joint_limits");
-  while (!this->set_joint_limits_client->wait_for_service(std::chrono::seconds(2))) {
-    if (!rclcpp::ok()) {
-      RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return;
-    }
-    RCLCPP_INFO(this->get_logger(), "Service not available, waiting again...");
+  if (this->set_joint_limits_client->wait_for_service(std::chrono::seconds(2))) {
+    // Call the set_joint_limits service and set the joint limits
+    auto set_joint_limits_request = std::make_shared<SetJointLimits::Request>();
+    set_joint_limits_request->min_rad = this->JMin;
+    set_joint_limits_request->max_rad = this->JMax;
+    set_joint_limits_request->max_vel_rad_s = this->MaxJointVel;
+    auto result = this->set_joint_limits_client->async_send_request(set_joint_limits_request);
+  } else {
+    RCLCPP_WARN(this->get_logger(), "delta_motors/set_joint_limits service not found. Skipping hardware joint limits config (assuming simulation only).");
   }
 
   // Create RobotConfig Publisher
@@ -110,27 +121,18 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
 
   // Create subscribers for motor positions and velocities
   this->motor_positions_sub = create_subscription<DeltaJoints>("delta_motors/motor_position_feedback", 10,
-    [this](const DeltaJoints::SharedPtr msg) -> void { // Update the motor positions
+    [this](const DeltaJoints::SharedPtr msg) -> void {
     this->robot_state.theta1 = msg->theta1;
     this->robot_state.theta2 = msg->theta2;
     this->robot_state.theta3 = msg->theta3;
-  }
-  );
+  });
 
   this->motor_velocities_sub = create_subscription<DeltaJointVels>("delta_motors/motor_velocity_feedback", 10,
-    [this](const DeltaJointVels::SharedPtr msg) -> void { // Update the motor velocities
+    [this](const DeltaJointVels::SharedPtr msg) -> void {
     this->robot_state.theta1_vel = msg->theta1_vel;
     this->robot_state.theta2_vel = msg->theta2_vel;
     this->robot_state.theta3_vel = msg->theta3_vel;
-  }
-  );
-
-  // Call the set_joint_limits service and set the joint limits
-  auto set_joint_limits_request = std::make_shared<SetJointLimits::Request>();
-  set_joint_limits_request->min_rad = this->JMin;
-  set_joint_limits_request->max_rad = this->JMax;
-  set_joint_limits_request->max_vel_rad_s = this->MaxJointVel;
-  auto result = this->set_joint_limits_client->async_send_request(set_joint_limits_request);
+  });
 
   // Create a timer to periodically get the motor positions and publish the robot configuration
   this->robot_config_timer = this->create_wall_timer(
@@ -274,17 +276,16 @@ Point DeltaKinematics::deltaFK(float theta1, float theta2, float theta3) {
 
   // discriminant
   float d = b * b - (float)4.0 * a * c;
+  Point p;  // Default initialize to 0
   if (d < 0) {
     RCLCPP_ERROR(this->get_logger(), "DeltaFK: Invalid Configuration (%f, %f, %f) [rad]", theta1, theta2, theta3);
+    p.x = 0; p.y = 0; p.z = -250.0; // Fail-safe default coordinate
   } else {
     z = -0.5 * (b + sqrt(d)) / a;
     x = (a1 * z + b1) / dnm;
     y = (a2 * z + b2) / dnm;
+    p.x = x; p.y = y; p.z = z;
   }
-  Point p;
-  p.x = x;
-  p.y = y;
-  p.z = z;
   return p;
 }
 

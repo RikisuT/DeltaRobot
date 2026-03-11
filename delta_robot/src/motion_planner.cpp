@@ -25,7 +25,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "motion_planner.hpp"
-
+#include <numeric>  // add this at the top
 // Include all the custom messages and services
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/srv/delta_fk.hpp"
@@ -49,99 +49,110 @@ using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVe
 DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   RCLCPP_INFO(get_logger(), "DeltaMotionPlanner node started");
 
-  this->demo_traj_server = create_service<PlayDemoTraj>(
-    "delta_motion_planner/play_demo_trajectory",
-    std::bind(&DeltaMotionPlanner::playDemoTrajectory, this, std::placeholders::_1, std::placeholders::_2)
-  );
+  // Create clients first (non-blocking)
+  this->delta_ik_client = create_client<DeltaIK>("delta_kinematics/delta_ik");
+  this->delta_fk_client = create_client<DeltaFK>("delta_kinematics/delta_fk");
+  this->convert_to_joint_trajectory_client = 
+    create_client<ConvertToJointTrajectory>("delta_kinematics/convert_to_joint_trajectory");
+  this->convert_to_joint_vel_trajectory_client = 
+    create_client<ConvertToJointVelTrajectory>("delta_kinematics/convert_to_joint_vel_trajectory");
 
+  // Create publishers
   const auto QOS_RKL10V = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
   this->joint_pub = this->create_publisher<DeltaJoints>("delta_motors/set_joints", QOS_RKL10V);
   this->joint_vel_pub = this->create_publisher<DeltaJointVels>("delta_motors/set_joint_vels", QOS_RKL10V);
+  this->trajectory_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+    "/joint_trajectory_controller/joint_trajectory",
+    rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile());
 
-  this->delta_ik_client = create_client<DeltaIK>("delta_kinematics/delta_ik");
-  while (!this->delta_ik_client->wait_for_service(std::chrono::seconds(2))) {
-    if (!rclcpp::ok()) {
-      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return;
-    }
-    RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
-  }
-
-  this->delta_fk_client = create_client<DeltaFK>("delta_kinematics/delta_fk");
-  while (!this->delta_fk_client->wait_for_service(std::chrono::seconds(2))) {
-    if (!rclcpp::ok()) {
-      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return;
-    }
-    RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
-  }
-
-  this->convert_to_joint_trajectory_client = create_client<ConvertToJointTrajectory>("delta_kinematics/convert_to_joint_trajectory");
-  while (!this->convert_to_joint_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
-    if (!rclcpp::ok()) {
-      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return;
-    }
-    RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
-  }
-
-  this->convert_to_joint_vel_trajectory_client = create_client<ConvertToJointVelTrajectory>("delta_kinematics/convert_to_joint_vel_trajectory");
-  while (!this->convert_to_joint_vel_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
-    if (!rclcpp::ok()) {
-      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return;
-    }
-    RCLCPP_INFO(get_logger(), "Service not available, waiting again...");
-  }
-
-  // Create service for MoveToPoint
-  this->move_to_point_server = create_service<MoveToPoint>(
-    "delta_motion_planner/move_to_point",
-    [this](const std::shared_ptr<MoveToPoint::Request> request, std::shared_ptr<MoveToPoint::Response> response) {
-    Point point = request->target;
-    this->moveToPoint(point);
-    response->success = true;
-  }
-  );
-
-  // Create service for MoveToConfiguration
-  this->move_to_configuration_server = create_service<MoveToConfiguration>(
-    "delta_motion_planner/move_to_configuration",
-    [this](const std::shared_ptr<MoveToConfiguration::Request> request, std::shared_ptr<MoveToConfiguration::Response> response) {
-    DeltaJoints joints = request->target_joint_angles;
-    this->moveToConfiguration(joints);
-    response->success = true;
-  }
-  );
-
-  // Create service for MotionDemo
-  this->motion_demo_server = create_service<MotionDemo>(
-    "delta_motion_planner/motion_demo",
-    [this](const std::shared_ptr<MotionDemo::Request> request, [[maybe_unused]] std::shared_ptr<MotionDemo::Response> response)
-  {this->playDemo = request->start;}
-  );
-
-  const float demoDelay = 32; // Every demoDelay seconds, run the MSI demo trajectory
-  this->demo_timer = this->create_wall_timer(
-    std::chrono::duration<float>(demoDelay),
+  // Defer service server + timer creation until kinematics services are available
+  this->init_timer = this->create_wall_timer(
+    std::chrono::milliseconds(500),
     [this]() -> void {
-    if (this->playDemo) {
-      RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory");
+      if (!this->delta_ik_client->service_is_ready() ||
+          !this->delta_fk_client->service_is_ready() ||
+          !this->convert_to_joint_trajectory_client->service_is_ready() ||
+          !this->convert_to_joint_vel_trajectory_client->service_is_ready()) {
+        RCLCPP_INFO(get_logger(), "Waiting for delta_kinematics services...");
+        return;
+      }
 
-      this->playTrajectory(this->pringleTrajectory());
-      this->playTrajectory(this->circleTrajectory());
-      this->playTrajectory(this->axesTrajectory());
-      this->playTrajectory(this->randomSampleTrajectory(20));
-    }
-  }
-  );
+      // Cancel this timer - we're done waiting
+      this->init_timer->cancel();
+      RCLCPP_INFO(get_logger(), "delta_kinematics services found, initializing...");
+
+      // Now safe to create servers and demo timer
+      this->demo_traj_server = create_service<PlayDemoTraj>(
+        "delta_motion_planner/play_demo_trajectory",
+        std::bind(&DeltaMotionPlanner::playDemoTrajectory, this,
+          std::placeholders::_1, std::placeholders::_2));
+
+      this->move_to_point_server = create_service<MoveToPoint>(
+        "delta_motion_planner/move_to_point",
+        [this](const std::shared_ptr<MoveToPoint::Request> request,
+               std::shared_ptr<MoveToPoint::Response> response) {
+          this->moveToPoint(request->target);
+          response->success = true;
+        });
+
+      this->move_to_configuration_server = create_service<MoveToConfiguration>(
+        "delta_motion_planner/move_to_configuration",
+        [this](const std::shared_ptr<MoveToConfiguration::Request> request,
+               std::shared_ptr<MoveToConfiguration::Response> response) {
+          this->moveToConfiguration(request->target_joint_angles);
+          response->success = true;
+        });
+
+      this->motion_demo_server = create_service<MotionDemo>(
+        "delta_motion_planner/motion_demo",
+        [this](const std::shared_ptr<MotionDemo::Request> request,
+               [[maybe_unused]] std::shared_ptr<MotionDemo::Response> response) {
+          this->playDemo = request->start;
+        });
+
+      const float demoDelay = 32;
+      this->demo_timer = this->create_wall_timer(
+        std::chrono::duration<float>(demoDelay),
+        [this]() -> void {
+          if (this->playDemo) {
+            RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory");
+            this->playTrajectory(this->pringleTrajectory());
+            this->playTrajectory(this->circleTrajectory());
+            this->playTrajectory(this->axesTrajectory());
+            this->playTrajectory(this->randomSampleTrajectory(20));
+          }
+        });
+    });
 }
 
 void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms) {
-  // Publish the joint trajectory to the motors with a small delay [ms] between each point
+  // Build a single JointTrajectory message with all points and cumulative time stamps
+  // The joint_trajectory_controller rejects single-point messages whose timestamp has already passed
+  trajectory_msgs::msg::JointTrajectory traj_msg;
+  traj_msg.header.stamp = rclcpp::Time(0);  // 0 = "execute immediately" for joint_trajectory_controller
+  traj_msg.joint_names = {"jbf1", "jbf2", "jbf3", "Bevelj1", "Bevelj2", "Tj1", "BeveljEE"};
+
+  const unsigned int step_ms = (delay_ms > 0) ? delay_ms : 50;
+  for (unsigned int i = 0; i < joint_traj.size(); i++) {
+    trajectory_msgs::msg::JointTrajectoryPoint point;
+    point.positions = {
+      joint_traj[i].theta1, joint_traj[i].theta2, joint_traj[i].theta3,
+      0.0, 0.0, 0.0, 0.0
+    };
+    // Each point is step_ms further in the future
+    const uint64_t t_ns = static_cast<uint64_t>(i + 1) * step_ms * 1000000ULL;
+    point.time_from_start.sec = static_cast<int32_t>(t_ns / 1000000000ULL);
+    point.time_from_start.nanosec = static_cast<uint32_t>(t_ns % 1000000000ULL);
+    traj_msg.points.push_back(point);
+  }
+
+  // Publish the full trajectory once to Gazebo
+  this->trajectory_pub->publish(traj_msg);
+
+  // Publish the joint commands to the physical motors with a delay per point
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
     this->joint_pub->publish(joint_traj[i]);
-    rclcpp::sleep_for(std::chrono::milliseconds(delay_ms));
+    rclcpp::sleep_for(std::chrono::milliseconds(step_ms));
   }
 }
 
@@ -417,12 +428,13 @@ std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
 }
 
 std::vector<Point> DeltaMotionPlanner::randomSampleTrajectory(const int numPoints) {
-  // Get all points from a random sample from random_points.csv
   std::vector<Point> allPoints = this->readCSV("random_points.csv");
-
-  // Randomly sample numPoints points from allPoints
+  if (allPoints.empty()) {  // ← add this
+    RCLCPP_ERROR(get_logger(), "randomSampleTrajectory: no points loaded from CSV");
+    return {};
+  }
   std::vector<Point> sampledPoints;
-  std::srand(std::time(0)); // Seed for random number generation
+  std::srand(std::time(0));
   for (int i = 0; i < numPoints; ++i) {
     int randomIndex = std::rand() % allPoints.size();
     sampledPoints.push_back(allPoints[randomIndex]);
@@ -434,7 +446,7 @@ std::vector<Point> DeltaMotionPlanner::readCSV(const std::string& fileName) {
   const std::string user = std::getenv("USER");
   const std::string file_path = "/home/" + user + "/DeltaRobot/" + fileName;
   // The csv file has 3 columns: X, Y, Z
-  std::ifstream file(fileName);
+  std::ifstream file(file_path);
   if (!file.is_open()) {
     RCLCPP_ERROR(get_logger(), "Failed to open file: %s", fileName.c_str());
     return {};

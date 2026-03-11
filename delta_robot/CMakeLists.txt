@@ -16,14 +16,14 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(dynamixel_sdk REQUIRED)
 find_package(deltarobot_interfaces REQUIRED)
 find_package(delta_robot_sensors REQUIRED)
-
+find_package(trajectory_msgs REQUIRED)
 # Other Dependencies
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Doxygen)
+find_package(ament_cmake_python REQUIRED)
 
 include_directories(
   include
@@ -39,7 +39,7 @@ target_link_libraries(kinematics ${deltarobot_interfaces_LIBRARIES})
 
 # MotionPlanner Node
 add_executable(motion_planner src/motion_planner.cpp)
-ament_target_dependencies(motion_planner rclcpp geometry_msgs deltarobot_interfaces delta_robot_sensors)
+ament_target_dependencies(motion_planner rclcpp geometry_msgs trajectory_msgs deltarobot_interfaces delta_robot_sensors)
 target_link_libraries(motion_planner ${deltarobot_interfaces_LIBRARIES})
 
 # Scanner Node
@@ -47,9 +47,8 @@ add_executable(range_scanner src/range_scanner.cpp)
 ament_target_dependencies(range_scanner rclcpp std_msgs sensor_msgs geometry_msgs)
 target_link_libraries(range_scanner ${deltarobot_interfaces_LIBRARIES})
 
-# Delta Motor Control Node
-add_executable(delta_motor_control src/motor_control.cpp)
-ament_target_dependencies(delta_motor_control rclcpp dynamixel_sdk deltarobot_interfaces)
+# Python Nodes
+ament_python_install_package(${PROJECT_NAME})
 
 # Delta Trajectory Generator Node
 add_executable(delta_trajectory_generator src/trajectory_generator.cpp)
@@ -61,8 +60,14 @@ install(TARGETS
   kinematics
   motion_planner
   range_scanner
-  delta_motor_control
   delta_trajectory_generator
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install Python scripts
+install(PROGRAMS
+  delta_robot/motor_control_node.py
+  delta_robot/joint_state_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

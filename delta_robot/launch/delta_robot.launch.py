@@ -29,8 +29,8 @@ def generate_launch_description():
         ),
         Node(
             package='delta_robot',
-            executable='motor_controller',
-            name='motor_controller',
+            executable='motor_control_node.py',
+            name='delta_motor_control',
             output='screen',
         ),
         Node(
@@ -41,7 +41,7 @@ def generate_launch_description():
         ),
         Node(
             package='delta_robot',
-            executable='trajectory_generator',
+            executable='delta_trajectory_generator',
             name='trajectory_generator',
             output='screen',
         ),

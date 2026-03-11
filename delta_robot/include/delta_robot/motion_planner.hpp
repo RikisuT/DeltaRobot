@@ -1,6 +1,5 @@
 #ifndef MOTION_PLANNER_HPP_
 #define MOTION_PLANNER_HPP_
-
 #include "rclcpp/rclcpp.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/srv/play_demo_trajectory.hpp"
@@ -12,7 +11,7 @@
 #include "deltarobot_interfaces/srv/move_to_configuration.hpp"
 #include "deltarobot_interfaces/srv/motion_demo.hpp"
 #include "geometry_msgs/msg/point.hpp"
-
+#include "trajectory_msgs/msg/joint_trajectory.hpp"
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
@@ -32,18 +31,28 @@ public:
 
 private:
   bool playDemo = false;
+  bool initialized = false;
 
+  // Timers
+  rclcpp::TimerBase::SharedPtr init_timer;  // ← only once
+  rclcpp::TimerBase::SharedPtr demo_timer;
+
+  // Publishers
   rclcpp::Publisher<DeltaJoints>::SharedPtr joint_pub;
   rclcpp::Publisher<DeltaJointVels>::SharedPtr joint_vel_pub;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_pub;
+
+  // Servers
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
   rclcpp::Service<MoveToPoint>::SharedPtr move_to_point_server;
   rclcpp::Service<MoveToConfiguration>::SharedPtr move_to_configuration_server;
   rclcpp::Service<MotionDemo>::SharedPtr motion_demo_server;
+
+  // Clients
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
   rclcpp::Client<ConvertToJointVelTrajectory>::SharedPtr convert_to_joint_vel_trajectory_client;
   rclcpp::Client<DeltaIK>::SharedPtr delta_ik_client;
   rclcpp::Client<DeltaFK>::SharedPtr delta_fk_client;
-  rclcpp::TimerBase::SharedPtr demo_timer;
 
   void publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms = 50);
   void publishMotorVelocityCommands(const std::vector<DeltaJointVels>& joint_vel_traj, const unsigned int delay_ms = 50);
@@ -65,4 +74,4 @@ private:
   std::vector<Point> randomSampleTrajectory(const int numPoints);
 };
 
-#endif // !MOTION_PLANNER_HPP_
+#endif  // MOTION_PLANNER_HPP_
