@@ -5,9 +5,9 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
 
-  <maintainer email="hogehoge@gmail.com">Me</maintainer>
+  <maintainer email="likhiacharya@gmail.com">Likhithraj T Acharya</maintainer>
 
-  <license>MIT</license>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>joint_state_publisher_gui</depend>
@@ -31,6 +31,9 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>velocity_controllers</exec_depend>
   <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>ros2_control</exec_depend>
   <exec_depend>ros2_controllers</exec_depend>
 

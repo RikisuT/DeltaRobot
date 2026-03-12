@@ -4,7 +4,7 @@
   <name>delta_robot_sensors</name>
   <version>1.0.0</version>
   <description>ROS Support for sensors attached to Delta Robot</description>
-  <maintainer email="sharwinpatil@u.northwestern.edu">Sharwin Patil</maintainer>
+  <maintainer email="likhiacharya@gmail.com">Likhithraj T Acharya</maintainer>
   <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

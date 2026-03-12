@@ -48,12 +48,14 @@ def generate_launch_description():
     # Path to RViz config (we will create this in Step 2)
 
     # --- 2. Launch Gazebo ---
+    gz_gui_config = os.path.join(delta_robot_sim_path, "config", "config.config")
+
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, "launch", "gz_sim.launch.py")
         ),
         launch_arguments={
-            "gz_args": f"-r -v 1 {world_file}"  # -v 1 = errors only (quiet)
+            "gz_args": f"-r -v 1 --gui-config {gz_gui_config} {world_file}"
         }.items(),
     )
 
@@ -115,6 +117,15 @@ def generate_launch_description():
         output="screen",
     )
 
+    # --- Foxglove Bridge ---
+    foxglove_bridge = Node(
+        package="foxglove_bridge",
+        executable="foxglove_bridge",
+        parameters=[{"port": 8765}],
+        output="log",
+        arguments=["--ros-args", "--log-level", "warn"],
+    )
+
     # --- 6. RViz2 ---
     rviz2 = Node(
         package="rviz2",
@@ -149,6 +160,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    plotter3d = Node(
+        package="delta_robot_sim",
+        executable="plotter3d.py",
+        name="delta_ee_plotter",
+        output="screen",
+    )
+
     return LaunchDescription(
         [
             gazebo_resource_path,
@@ -161,5 +179,6 @@ def generate_launch_description():
             load_joint_state_broadcaster,
             load_joint_trajectory_controller,
             load_joint_feedback,
+            plotter3d,
         ]
     )
