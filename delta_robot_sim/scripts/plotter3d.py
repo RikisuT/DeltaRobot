@@ -60,7 +60,14 @@ class DeltaEEPlotter(Node):
             self.marker_pub.publish(self.marker)
 
         except TransformException as ex:
-            self.get_logger().info(f"Could not transform: {ex}")
+            # Avoid spamming logs if sim is still loading
+            if not hasattr(self, '_last_transform_error'):
+                self._last_transform_error = ""
+            
+            error_msg = str(ex)
+            if error_msg != self._last_transform_error:
+                self.get_logger().info(f"Waiting for valid transform: {error_msg}")
+                self._last_transform_error = error_msg
 
 
 def main():
@@ -71,7 +78,7 @@ def main():
     except KeyboardInterrupt:
         pass
     node.destroy_node()
-    rclpy.init()
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@
 #include "deltarobot_interfaces/srv/motion_demo.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
+#include <thread>
+#include <atomic>
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
@@ -32,6 +34,11 @@ public:
 private:
   bool playDemo = false;
   bool initialized = false;
+  std::atomic<bool> cancel_current_traj{false};
+  std::unique_ptr<std::thread> traj_thread;
+
+  // Parameters
+  int param_traj_step_ms = 20;  // Default to 20ms (50Hz)
 
   // Timers
   rclcpp::TimerBase::SharedPtr init_timer;  // ← only once

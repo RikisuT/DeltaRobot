@@ -12,7 +12,7 @@
             </geometry>
             <material name="Bevel1Bevel1_visual">
                 <texture/>
-                <color rgba="0.84 0.6 0.12 1.2"/>
+                <color rgba="0.84 0.6 0.12 1.0"/>
             </material>
         </visual>
         <collision>
@@ -35,7 +35,7 @@
             </geometry>
             <material name="Bevel2Bevel2_visual">
                 <texture/>
-                <color rgba="0.84 0.6 0.12 1.2"/>
+                <color rgba="0.84 0.6 0.12 1.0"/>
             </material>
         </visual>
         <collision>
@@ -58,7 +58,7 @@
             </geometry>
             <material name="EEEE_visual">
                 <texture/>
-                <color rgba="0.96 0.12 0.12 1.2"/>
+                <color rgba="0.96 0.12 0.12 1.0"/>
             </material>
         </visual>
         <collision>
@@ -81,7 +81,7 @@
             </geometry>
             <material name="EEBaseEEBase_visual">
                 <texture/>
-                <color rgba="0 0.36 0.84 1.2"/>
+                <color rgba="0 0.36 0.84 1.0"/>
             </material>
         </visual>
         <collision>
@@ -104,7 +104,7 @@
             </geometry>
             <material name="FrameFrame_visual">
                 <texture/>
-                <color rgba="0.24 0.24 0.24 1.2"/>
+                <color rgba="0.24 0.24 0.24 1.0"/>
             </material>
         </visual>
         <collision>
@@ -127,7 +127,7 @@
             </geometry>
             <material name="TT_visual">
                 <texture/>
-                <color rgba="0.84 0.84 0.84 1.2"/>
+                <color rgba="0.84 0.84 0.84 1.0"/>
             </material>
         </visual>
         <collision>
@@ -150,7 +150,7 @@
             </geometry>
             <material name="arm1arm1_visual">
                 <texture/>
-                <color rgba="0.96 0.96 0.96 1.2"/>
+                <color rgba="0.96 0.96 0.96 1.0"/>
             </material>
         </visual>
         <collision>
@@ -173,7 +173,7 @@
             </geometry>
             <material name="arm2arm2_visual">
                 <texture/>
-                <color rgba="0.96 0.96 0.96 1.2"/>
+                <color rgba="0.96 0.96 0.96 1.0"/>
             </material>
         </visual>
         <collision>
@@ -196,7 +196,7 @@
             </geometry>
             <material name="arm3arm3_visual">
                 <texture/>
-                <color rgba="0.96 0.96 0.96 1.2"/>
+                <color rgba="0.96 0.96 0.96 1.0"/>
             </material>
         </visual>
         <collision>
@@ -219,7 +219,7 @@
             </geometry>
             <material name="arm4arm4_visual">
                 <texture/>
-                <color rgba="0.96 0.96 0.96 1.2"/>
+                <color rgba="0.96 0.96 0.96 1.0"/>
             </material>
         </visual>
         <collision>
@@ -242,7 +242,7 @@
             </geometry>
             <material name="arm5arm5_visual">
                 <texture/>
-                <color rgba="0.96 0.96 0.96 1.2"/>
+                <color rgba="0.96 0.96 0.96 1.0"/>
             </material>
         </visual>
         <collision>
@@ -265,7 +265,7 @@
             </geometry>
             <material name="arm6arm6_visual">
                 <texture/>
-                <color rgba="0.96 0.96 0.96 1.2"/>
+                <color rgba="0.96 0.96 0.96 1.0"/>
             </material>
         </visual>
         <collision>
@@ -288,7 +288,7 @@
             </geometry>
             <material name="basebase_visual">
                 <texture/>
-                <color rgba="0.24 0.24 0.24 1.2"/>
+                <color rgba="0.24 0.24 0.24 1.0"/>
             </material>
         </visual>
         <collision>
@@ -448,7 +448,7 @@
             </geometry>
             <material name="forearm1forearm1_visual">
                 <texture/>
-                <color rgba="0 0.36 0.84 1.2"/>
+                <color rgba="0 0.36 0.84 1.0"/>
             </material>
         </visual>
         <collision>
@@ -471,7 +471,7 @@
             </geometry>
             <material name="forearm2forearm2_visual">
                 <texture/>
-                <color rgba="0 0.36 0.84 1.2"/>
+                <color rgba="0 0.36 0.84 1.0"/>
             </material>
         </visual>
         <collision>
@@ -494,7 +494,7 @@
             </geometry>
             <material name="forearm3forearm3_visual">
                 <texture/>
-                <color rgba="0 0.36 0.84 1.2"/>
+                <color rgba="0 0.36 0.84 1.0"/>
             </material>
         </visual>
         <collision>

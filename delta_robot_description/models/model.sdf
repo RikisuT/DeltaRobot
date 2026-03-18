@@ -920,9 +920,10 @@
 			<pose>-0.0 0.0 0 0 0 0</pose>
 			<axis>
 				<xyz>-5.65359340425105e-16 0.9999999999999969 1.1997618623413132e-15</xyz>
+				<initial_position>0</initial_position>
 				<limit>
-					<lower>-2.007128639793479</lower>
-					<upper>2.007128639793479</upper>
+					<lower>-0.1745</lower>
+					<upper>1.5708</upper>
 					<effort>2.0</effort>
 					<velocity>25.0</velocity>
 				</limit>
@@ -935,9 +936,10 @@
 			<pose>0.0 -0.0 0 0 0 0</pose>
 			<axis>
 				<xyz>-0.8660254037844364 -0.49999999999999767 -1.0375984197275728e-16</xyz>
+				<initial_position>0</initial_position>
 				<limit>
-					<lower>-2.007128639793479</lower>
-					<upper>2.007128639793479</upper>
+					<lower>-0.1745</lower>
+					<upper>1.5708</upper>
 					<effort>2.0</effort>
 					<velocity>25.0</velocity>
 				</limit>
@@ -950,9 +952,10 @@
 			<pose>0.0 0.0 0 0 0 0</pose>
 			<axis>
 				<xyz>0.8660254041960478 -0.4999999992870731 8.003401443675243e-16</xyz>
+				<initial_position>0</initial_position>
 				<limit>
-					<lower>-2.007128639793479</lower>
-					<upper>2.007128639793479</upper>
+					<lower>-0.1745</lower>
+					<upper>1.5708</upper>
 					<effort>2.0</effort>
 					<velocity>25.0</velocity>
 				</limit>

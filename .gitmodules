@@ -1,0 +1,3 @@
+[submodule "scservo_sdk/scservo_sdk_upstream"]
+	path = scservo_sdk/external/FTServo_Python
+	url = https://github.com/ftservo/FTServo_Python

@@ -56,6 +56,10 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     create_client<ConvertToJointTrajectory>("delta_kinematics/convert_to_joint_trajectory");
   this->convert_to_joint_vel_trajectory_client = 
     create_client<ConvertToJointVelTrajectory>("delta_kinematics/convert_to_joint_vel_trajectory");
+  
+  // Declare and get parameters
+  this->declare_parameter("traj_step_ms", 10);
+  this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
 
   // Create publishers
   const auto QOS_RKL10V = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
@@ -132,8 +136,9 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
   traj_msg.header.stamp = rclcpp::Time(0);  // 0 = "execute immediately" for joint_trajectory_controller
   traj_msg.joint_names = {"jbf1", "jbf2", "jbf3", "Bevelj1", "Bevelj2", "Tj1", "BeveljEE"};
 
-  const unsigned int step_ms = (delay_ms > 0) ? delay_ms : 50;
+  const unsigned int step_ms = (delay_ms > 0) ? delay_ms : static_cast<unsigned int>(this->param_traj_step_ms);
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
+    if (this->cancel_current_traj) break;
     trajectory_msgs::msg::JointTrajectoryPoint point;
     point.positions = {
       joint_traj[i].theta1, joint_traj[i].theta2, joint_traj[i].theta3,
@@ -151,6 +156,7 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
 
   // Publish the joint commands to the physical motors with a delay per point
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
+    if (this->cancel_current_traj) break;
     this->joint_pub->publish(joint_traj[i]);
     rclcpp::sleep_for(std::chrono::milliseconds(step_ms));
   }
@@ -222,8 +228,20 @@ void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
     auto response = future.get();
     *joint_traj = response->joint_trajectory;
 
-    // Publish the joint trajectory to the motors with small delay
-    this->publishMotorCommands(*joint_traj, 50);
+    // Cancel existing trajectory if any
+    this->cancel_current_traj = true;
+    if (this->traj_thread && this->traj_thread->joinable()) {
+      this->traj_thread->join();
+    }
+    this->cancel_current_traj = false;
+
+    // Start new trajectory thread
+    this->traj_thread = std::make_unique<std::thread>([this, joint_traj]() {
+      // Reload parameter in case it changed
+      this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
+      this->publishMotorCommands(*joint_traj, this->param_traj_step_ms);
+    });
+    this->traj_thread->detach(); // Allow it to run independently
   }
   );
   // ---------- END_CITATION [1] ----------
@@ -273,9 +291,9 @@ std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
   const int num_points = 300;
   std::vector<Point> trajectory;
 
-  const float center = -150.0;
-  const float amplitude = 72.0;
-  const int cycles = 12;
+  const float center = -180.0;
+  const float amplitude = 75.0;
+  const int cycles = 5;
 
   for (int i = 0; i < num_points; i++) {
     double t = static_cast<double>(i) / (num_points - 1);

@@ -18,13 +18,19 @@ RangeScanner::RangeScanner() : Node("range_scanner") {
 
   // Create play_demo_trajectory client
   this->play_demo_trajectory_client = this->create_client<PlayDemoTrajectory>("play_demo_trajectory");
+  
+  bool logged = false;
   while (!this->play_demo_trajectory_client->wait_for_service(std::chrono::seconds(2))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
       return;
     }
-    RCLCPP_INFO(this->get_logger(), "Service not available, waiting again...");
+    if (!logged) {
+        RCLCPP_INFO(this->get_logger(), "Waiting for 'play_demo_trajectory' service...");
+        logged = true;
+    }
   }
+  RCLCPP_INFO(this->get_logger(), "Service 'play_demo_trajectory' available.");
 
   const double update_freq = 100.0; // [Hz]
   this->scanning_timer = this->create_wall_timer(

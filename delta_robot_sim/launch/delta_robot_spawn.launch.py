@@ -3,9 +3,14 @@ import math
 from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
+
+# Add these imports at the top
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
@@ -26,6 +31,12 @@ def generate_launch_description():
     gazebo_plugin_path = SetEnvironmentVariable(
         name="GZ_SIM_SYSTEM_PLUGIN_PATH",
         value="/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/",
+    )
+
+    use_sim_feedback_arg = DeclareLaunchArgument(
+        "use_sim_feedback",
+        default_value="true",
+        description="Set false when real motors are running to avoid feedback conflict",
     )
 
     # Load SDF
@@ -66,7 +77,7 @@ def generate_launch_description():
         name="robot_state_publisher",
         output="both",
         parameters=[
-            {"use_sim_time": True},
+            {"use_sim_time": False},
             {"robot_description": robot_desc},
         ],
         remappings=[
@@ -136,7 +147,7 @@ def generate_launch_description():
             "-d",
             os.path.join(delta_robot_sim_path, "config", "delta_robot.rviz"),
         ],
-        parameters=[{"use_sim_time": True}],
+        parameters=[{"use_sim_time": False}],
     )
 
     # --- 7. ROS2 Control Spawners ---
@@ -158,17 +169,24 @@ def generate_launch_description():
         executable="joint_state_bridge.py",
         name="joint_state_bridge",
         output="screen",
+        condition=IfCondition(LaunchConfiguration("use_sim_feedback")),  # ← add this
     )
 
-    plotter3d = Node(
-        package="delta_robot_sim",
-        executable="plotter3d.py",
-        name="delta_ee_plotter",
-        output="screen",
+    plotter3d = TimerAction(
+        period=5.0,
+        actions=[
+            Node(
+                package="delta_robot_sim",
+                executable="plotter3d.py",
+                name="delta_ee_plotter",
+                output="screen",
+            )
+        ],
     )
 
     return LaunchDescription(
         [
+            use_sim_feedback_arg,
             gazebo_resource_path,
             gazebo_plugin_path,
             gz_sim,
