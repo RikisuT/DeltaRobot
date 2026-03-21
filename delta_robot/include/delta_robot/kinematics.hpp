@@ -12,6 +12,7 @@
 #include "deltarobot_interfaces/srv/set_joint_limits.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
+#include <string>
 #include <vector>
 #include <eigen3/Eigen/Dense>
 
@@ -64,6 +65,9 @@ private:
 
   // Helper function for IK to find active link angle when normal to the link's rotation axis (YZ-plane)
   int deltaIK_AngleYZ(float x0, float y0, float z0, float& theta);
+  bool isCartesianUnitsSupported(const std::string & units) const;
+  Point toInternalUnits(const Point & p) const;
+  Point fromInternalUnits(const Point & p) const;
 
   Point deltaFK(float theta1, float theta2, float theta3);
   DeltaJoints deltaIK(float x, float y, float z);
@@ -101,6 +105,9 @@ private:
 
   /// @brief Maximum Joint Velocity [rad/s]
   float MaxJointVel;
+
+  /// @brief Cartesian units at node API boundary (e.g. mm, m)
+  std::string cartesian_units;
 
   /// @brief Phi Angles [rad]
   const float phi[3] = {-M_PI_2, M_PI / 6.0, (5.0 * M_PI) / 6.0};

@@ -1,3 +1,11 @@
-std_msgs/String type
+uint8 DEMO_UP_DOWN=0
+uint8 DEMO_PRINGLE=1
+uint8 DEMO_AXES=2
+uint8 DEMO_CIRCLE=3
+uint8 DEMO_SCAN=4
+
+uint8 demo_type
 ---
 bool success
+int32 error_code
+string error_message

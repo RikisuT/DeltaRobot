@@ -39,34 +39,60 @@ def generate_launch_description():
         description="Set false when real motors are running to avoid feedback conflict",
     )
 
-    # Load SDF
+    rsp_log_level_arg = DeclareLaunchArgument(
+        "rsp_log_level",
+        default_value="error",
+        description="Log level for robot_state_publisher",
+    )
+
+    # Load SDF for Gazebo simulation
     sdf_file = os.path.join(delta_robot_description_path, "models", "model.sdf")
+    if not os.path.exists(sdf_file):
+        raise FileNotFoundError(f"Missing robot model SDF: {sdf_file}")
     with open(sdf_file, "r") as infp:
-        robot_desc = infp.read()
+        robot_desc_sdf = infp.read()
 
     # Load Box SDF
     box_sdf_file = os.path.join(delta_robot_description_path, "models", "box.sdf")
+    if not os.path.exists(box_sdf_file):
+        raise FileNotFoundError(f"Missing box SDF: {box_sdf_file}")
     with open(box_sdf_file, "r") as infp:
         infp.read()
 
-    # Pre-process SDF to replace $(find delta_robot_sim) with actual path
-    # because standard SDF parser doesn't resolve $(find ...)
-    robot_desc = robot_desc.replace("$(find delta_robot_sim)", delta_robot_sim_path)
+    # Pre-process SDF to replace explicit launch-time placeholder with actual path
+    placeholder = "__DELTA_ROBOT_SIM_SHARE__"
+    if placeholder not in robot_desc_sdf:
+        raise RuntimeError(
+            "Expected placeholder '__DELTA_ROBOT_SIM_SHARE__' not found in model.sdf"
+        )
+    robot_desc_sdf = robot_desc_sdf.replace(placeholder, delta_robot_sim_path)
 
     # Setup World
     world_file = os.path.join(delta_robot_sim_path, "worlds", "empty.sdf")
+    if not os.path.exists(world_file):
+        raise FileNotFoundError(f"Missing simulation world: {world_file}")
 
     # Path to RViz config (we will create this in Step 2)
 
     # --- 2. Launch Gazebo ---
     gz_gui_config = os.path.join(delta_robot_sim_path, "config", "config.config")
+    if not os.path.exists(gz_gui_config):
+        raise FileNotFoundError(f"Missing Gazebo GUI config: {gz_gui_config}")
+
+    bridge_config = os.path.join(delta_robot_sim_path, "config", "ros_gz_bridge.yaml")
+    if not os.path.exists(bridge_config):
+        raise FileNotFoundError(f"Missing ROS-Gazebo bridge config: {bridge_config}")
+
+    rviz_config = os.path.join(delta_robot_sim_path, "config", "delta_robot.rviz")
+    if not os.path.exists(rviz_config):
+        raise FileNotFoundError(f"Missing RViz config: {rviz_config}")
 
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, "launch", "gz_sim.launch.py")
         ),
         launch_arguments={
-            "gz_args": f"-r -v 1 --gui-config {gz_gui_config} {world_file}"
+            "gz_args": f"-r -v 0 --gui-config {gz_gui_config} {world_file}"
         }.items(),
     )
 
@@ -75,10 +101,15 @@ def generate_launch_description():
         package="robot_state_publisher",
         executable="robot_state_publisher",
         name="robot_state_publisher",
-        output="both",
+        output="log",
+        arguments=[
+            "--ros-args",
+            "--log-level",
+            LaunchConfiguration("rsp_log_level"),
+        ],
         parameters=[
             {"use_sim_time": False},
-            {"robot_description": robot_desc},
+            {"robot_description": robot_desc_sdf},
         ],
         remappings=[
             ("/tf", "/tf_rsp_ignore"),
@@ -90,10 +121,10 @@ def generate_launch_description():
     gz_spawn_entity = Node(
         package="ros_gz_sim",
         executable="create",
-        output="screen",
+        output="log",
         arguments=[
             "-string",
-            robot_desc,
+            robot_desc_sdf,
             "-name",
             "delta_robot",
             "-allow_renaming",
@@ -117,15 +148,14 @@ def generate_launch_description():
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
+        arguments=["--ros-args", "--log-level", "warn"],
         parameters=[
             {
-                "config_file": os.path.join(
-                    delta_robot_sim_path, "config", "ros_gz_bridge.yaml"
-                ),
+                "config_file": bridge_config,
                 "qos_overrides./tf_static.publisher.durability": "transient_local",
             }
         ],
-        output="screen",
+        output="log",
     )
 
     # --- Foxglove Bridge ---
@@ -145,7 +175,10 @@ def generate_launch_description():
         output="screen",
         arguments=[
             "-d",
-            os.path.join(delta_robot_sim_path, "config", "delta_robot.rviz"),
+            rviz_config,
+            "--ros-args",
+            "--log-level",
+            "error",
         ],
         parameters=[{"use_sim_time": False}],
     )
@@ -154,21 +187,31 @@ def generate_launch_description():
     load_joint_state_broadcaster = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster"],
-        output="screen",
+        arguments=[
+            "joint_state_broadcaster",
+            "--ros-args",
+            "--log-level",
+            "warn",
+        ],
+        output="log",
     )
 
     load_joint_trajectory_controller = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_trajectory_controller"],
-        output="screen",
+        arguments=[
+            "joint_trajectory_controller",
+            "--ros-args",
+            "--log-level",
+            "warn",
+        ],
+        output="log",
     )
     load_joint_feedback = Node(
         package="delta_robot",
         executable="joint_state_bridge.py",
         name="joint_state_bridge",
-        output="screen",
+        output="log",
         condition=IfCondition(LaunchConfiguration("use_sim_feedback")),  # ← add this
     )
 
@@ -179,7 +222,7 @@ def generate_launch_description():
                 package="delta_robot_sim",
                 executable="plotter3d.py",
                 name="delta_ee_plotter",
-                output="screen",
+                output="log",
             )
         ],
     )
@@ -187,6 +230,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             use_sim_feedback_arg,
+            rsp_log_level_arg,
             gazebo_resource_path,
             gazebo_plugin_path,
             gz_sim,

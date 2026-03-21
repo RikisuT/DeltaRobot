@@ -87,10 +87,10 @@ Run a demo trajectory:
 ```bash
 # Terminal 4 — Trigger a demo
 ros2 service call /delta_motion_planner/play_demo_trajectory \
-  deltarobot_interfaces/srv/PlayDemoTrajectory '{type: {data: circle}}'
+  deltarobot_interfaces/srv/PlayDemoTrajectory '{demo_type: 3}'
 ```
 
-Available demos: `circle`, `pringle`, `axes`, `up_down`, `scan`
+Demo map: `0=up_down`, `1=pringle`, `2=axes`, `3=circle`, `4=scan`
 
 > The simulation launch also starts a **Foxglove Bridge** on port `8765`.
 > Open [Foxglove Studio](https://foxglove.dev/) and connect to `ws://localhost:8765`
@@ -119,6 +119,12 @@ ros2 run delta_robot motor_control_node.py
 
 You can then send commands exactly as in the simulation (e.g. the demo
 service call above).
+
+If you use the package launch file, motor control is disabled by default and must be enabled explicitly:
+
+```bash
+ros2 launch delta_robot delta_robot.launch.py run_motor_control:=true motor_mode:=auto
+```
 
 ## License
 

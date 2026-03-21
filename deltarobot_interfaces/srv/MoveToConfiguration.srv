@@ -1,3 +1,5 @@
 DeltaJoints target_joint_angles
 ---
 bool success
+int32 error_code
+string error_message

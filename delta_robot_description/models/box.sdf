@@ -43,7 +43,7 @@
                     <pbr>
                         <metal>
                             <albedo_map>
-                                /home/rikisu/major_project_ws/src/delta_robot_description/materials/textures/aruco_marker.png</albedo_map>
+                                package://delta_robot_description/materials/textures/aruco_marker.png</albedo_map>
                             <roughness>1.0</roughness>
                             <metalness>0.0</metalness>
                         </metal>

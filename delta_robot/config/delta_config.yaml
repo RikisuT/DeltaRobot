@@ -5,6 +5,7 @@ delta_kinematics:
     active_link_length: 105.0 # [mm]
     passive_link_length: 218.75 # [mm] (Matches observed SDF/Simulation length)
     passive_link_width: 42.84670 # [mm]
+    cartesian_units: mm
     joint_min: -0.174532925199 # [rad] (-10 deg)
     joint_max: 1.57079632679 # [rad] (90 deg)
     max_joint_velocity: 11.1 # [rad/s] (106 RPM as requested)

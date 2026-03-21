@@ -920,12 +920,11 @@
 			<pose>-0.0 0.0 0 0 0 0</pose>
 			<axis>
 				<xyz>-5.65359340425105e-16 0.9999999999999969 1.1997618623413132e-15</xyz>
-				<initial_position>0</initial_position>
 				<limit>
 					<lower>-0.1745</lower>
 					<upper>1.5708</upper>
 					<effort>2.0</effort>
-					<velocity>25.0</velocity>
+					<velocity>11.1</velocity>
 				</limit>
 
 			</axis>
@@ -936,12 +935,11 @@
 			<pose>0.0 -0.0 0 0 0 0</pose>
 			<axis>
 				<xyz>-0.8660254037844364 -0.49999999999999767 -1.0375984197275728e-16</xyz>
-				<initial_position>0</initial_position>
 				<limit>
 					<lower>-0.1745</lower>
 					<upper>1.5708</upper>
 					<effort>2.0</effort>
-					<velocity>25.0</velocity>
+					<velocity>11.1</velocity>
 				</limit>
 
 			</axis>
@@ -952,12 +950,11 @@
 			<pose>0.0 0.0 0 0 0 0</pose>
 			<axis>
 				<xyz>0.8660254041960478 -0.4999999992870731 8.003401443675243e-16</xyz>
-				<initial_position>0</initial_position>
 				<limit>
 					<lower>-0.1745</lower>
 					<upper>1.5708</upper>
 					<effort>2.0</effort>
-					<velocity>25.0</velocity>
+					<velocity>11.1</velocity>
 				</limit>
 
 			</axis>
@@ -1185,7 +1182,7 @@
 		</plugin>
 
 		<plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-			<parameters>$(find delta_robot_sim)/config/ros2_controllers.yaml</parameters>
+			<parameters>__DELTA_ROBOT_SIM_SHARE__/config/ros2_controllers.yaml</parameters>
 		</plugin>
 
 		<ros2_control name="IgnitionSystem" type="system">

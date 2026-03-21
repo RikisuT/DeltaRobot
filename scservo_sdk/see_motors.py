@@ -30,16 +30,26 @@ class ServoPlotterNode(Node):
         self.latest_actuals = {mid: 2048.0 for mid in SERVO_IDS}
 
     def target_cb(self, msg):
-        if len(msg.data) == len(SERVO_IDS):
-            with self.lock:
-                for i, mid in enumerate(SERVO_IDS):
-                    self.latest_targets[mid] = msg.data[i]
+        if not msg.data:
+            return
+
+        with self.lock:
+            # Support both [id1,id2,id3] and [id1..id5] payloads.
+            for i, mid in enumerate(SERVO_IDS):
+                source_idx = mid - 1 if len(msg.data) > i and len(msg.data) >= max(SERVO_IDS) else i
+                if source_idx < len(msg.data):
+                    self.latest_targets[mid] = msg.data[source_idx]
 
     def actual_cb(self, msg):
-        if len(msg.data) == len(SERVO_IDS):
-            with self.lock:
-                for i, mid in enumerate(SERVO_IDS):
-                    self.latest_actuals[mid] = msg.data[i]
+        if not msg.data:
+            return
+
+        with self.lock:
+            # Support both [id1,id2,id3] and [id1..id5] payloads.
+            for i, mid in enumerate(SERVO_IDS):
+                source_idx = mid - 1 if len(msg.data) > i and len(msg.data) >= max(SERVO_IDS) else i
+                if source_idx < len(msg.data):
+                    self.latest_actuals[mid] = msg.data[source_idx]
 
 
 def estimate_lag_ms(target_arr, actual_arr, sample_interval_s):

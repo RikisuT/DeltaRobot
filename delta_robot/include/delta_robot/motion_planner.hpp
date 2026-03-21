@@ -14,6 +14,7 @@
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
 #include <thread>
 #include <atomic>
+#include <string>
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
@@ -64,11 +65,11 @@ private:
   void publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms = 50);
   void publishMotorVelocityCommands(const std::vector<DeltaJointVels>& joint_vel_traj, const unsigned int delay_ms = 50);
 
-  void moveToPoint(const Point& point);
-  void moveToConfiguration(const DeltaJoints& joints);
+  bool moveToPoint(const Point& point, int32_t & error_code, std::string & error_message);
+  bool moveToConfiguration(const DeltaJoints& joints, int32_t & error_code, std::string & error_message);
   void moveThroughPoints(const std::vector<Point>& points);
 
-  void playTrajectory(const std::vector<Point> trajectory);
+  bool playTrajectory(const std::vector<Point> trajectory, int32_t & error_code, std::string & error_message);
   void playDemoTrajectory(const std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response);
 
   std::vector<Point> readCSV(const std::string& fileName);

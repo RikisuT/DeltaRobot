@@ -5,6 +5,8 @@
 ### `kinematics`
 Provides forward and inverse kinematics as ROS 2 services. Accepts a config YAML for robot geometry (link lengths, joint limits). Also publishes `robot_config` (pose + joint angles) at a configurable rate.
 
+The kinematics API now uses a cartesian unit boundary configured by `cartesian_units` in `delta_config.yaml` (`mm` or `m`). Internal kinematics stays in millimeters and requests/responses are converted at the service boundary.
+
 **Services:** `delta_fk`, `delta_ik`, `convert_to_joint_trajectory`, `convert_to_joint_vel_trajectory`
 
 ### `motion_planner`
@@ -12,7 +14,9 @@ Top-level control node. Sends joint trajectory commands to both the physical mot
 
 **Services:** `play_demo_trajectory`, `move_to_point`, `move_to_configuration`, `motion_demo`
 
-Built-in demos: `circle`, `pringle`, `axes`, `up_down`, `scan`
+`play_demo_trajectory` uses `demo_type` (`0=up_down`, `1=pringle`, `2=axes`, `3=circle`, `4=scan`) and returns structured status fields (`success`, `error_code`, `error_message`).
+
+`move_to_point` and `move_to_configuration` also return structured status fields (`success`, `error_code`, `error_message`) for client-side diagnostics.
 
 ### `motor_control_node.py` *(Python)*
 Interfaces with the **Waveshare ST3215** serial bus servos via the [`stservo`](https://github.com/iltlo/waveshare_stservo_python) Python SDK (install with `pip install -e repos/waveshare_stservo_python`).

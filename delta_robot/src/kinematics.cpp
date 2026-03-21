@@ -35,6 +35,8 @@
 #include "kinematics.hpp"
 #include <vector>
 #include <math.h>
+#include <cmath>
+#include <limits>
 #include <eigen3/Eigen/Dense>
 
 const float sqrt3 = sqrt(3.0);
@@ -60,6 +62,7 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   this->declare_parameter("joint_max", M_PI / 2.0);
   this->declare_parameter("max_joint_velocity", 1.0);
   this->declare_parameter("robot_config_freq", 10.0);
+  this->declare_parameter("cartesian_units", "mm");
 
   // Save parameters from yaml for easy access
   this->SB = this->get_parameter("base_triangle_side_length").as_double();
@@ -70,6 +73,11 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   this->JMin = this->get_parameter("joint_min").as_double();
   this->JMax = this->get_parameter("joint_max").as_double();
   this->MaxJointVel = this->get_parameter("max_joint_velocity").as_double();
+  this->cartesian_units = this->get_parameter("cartesian_units").as_string();
+  if (!this->isCartesianUnitsSupported(this->cartesian_units)) {
+    RCLCPP_WARN(this->get_logger(), "Unsupported cartesian_units='%s'. Falling back to 'mm'.", this->cartesian_units.c_str());
+    this->cartesian_units = "mm";
+  }
   const double robot_config_freq = this->get_parameter("robot_config_freq").as_double();
 
   // Initialize robot_state with safe 45 degree angles to prevent FK failure on startup
@@ -147,11 +155,12 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
     robot_config_msg.joint_velocities.theta2_vel = this->robot_state.theta2_vel;
     robot_config_msg.joint_velocities.theta3_vel = this->robot_state.theta3_vel;
     // Perform FK to get the end effector position
-    robot_config_msg.end_effector_position = this->deltaFK(
+    const Point fk_position_mm = this->deltaFK(
       robot_config_msg.joint_angles.theta1,
       robot_config_msg.joint_angles.theta2,
       robot_config_msg.joint_angles.theta3
     );
+    robot_config_msg.end_effector_position = this->fromInternalUnits(fk_position_mm);
     this->robot_config_publisher->publish(robot_config_msg);
   }
   );
@@ -161,6 +170,7 @@ void DeltaKinematics::forwardKinematics(const std::shared_ptr<DeltaFK::Request> 
   Point position = this->deltaFK(
     request->joint_angles.theta1, request->joint_angles.theta2, request->joint_angles.theta3
   );
+  position = this->fromInternalUnits(position);
 
   // Update the response data (end effector position)
   response->solution.x = position.x;
@@ -170,9 +180,16 @@ void DeltaKinematics::forwardKinematics(const std::shared_ptr<DeltaFK::Request> 
 }
 
 void DeltaKinematics::inverseKinematics(const std::shared_ptr<DeltaIK::Request> request, std::shared_ptr<DeltaIK::Response> response) {
+  const Point input_internal = this->toInternalUnits(request->solution);
   DeltaJoints joints = this->deltaIK(
-    request->solution.x, request->solution.y, request->solution.z
+    input_internal.x, input_internal.y, input_internal.z
   );
+
+  const bool valid = std::isfinite(joints.theta1) && std::isfinite(joints.theta2) && std::isfinite(joints.theta3);
+  if (!valid) {
+    response->success = false;
+    return;
+  }
 
   // Update the response data (joint angles)
   response->joint_angles.theta1 = joints.theta1;
@@ -202,9 +219,25 @@ void DeltaKinematics::convertToJointTrajectory(const std::shared_ptr<ConvertToJo
   std::vector<Point> trajectory = request->end_effector_trajectory;
   std::vector<DeltaJoints> joint_trajectory;
 
+  if (trajectory.empty()) {
+    response->success = false;
+    response->error_code = 1;
+    response->error_message = "Empty end_effector_trajectory";
+    return;
+  }
+
   // Iterate through the trajectory and convert each point to joint angles
   for (auto point : trajectory) {
-    DeltaJoints joints = this->deltaIK(point.x, point.y, point.z);
+    const Point point_internal = this->toInternalUnits(point);
+    DeltaJoints joints = this->deltaIK(point_internal.x, point_internal.y, point_internal.z);
+    const bool valid = std::isfinite(joints.theta1) && std::isfinite(joints.theta2) && std::isfinite(joints.theta3);
+    if (!valid) {
+      response->success = false;
+      response->error_code = 2;
+      response->error_message = "IK infeasible for at least one trajectory point";
+      response->joint_trajectory.clear();
+      return;
+    }
 
     DeltaJoints joint_angles;
     joint_angles.theta1 = joints.theta1;
@@ -216,6 +249,9 @@ void DeltaKinematics::convertToJointTrajectory(const std::shared_ptr<ConvertToJo
 
   // Update the response data (joint trajectory)
   response->joint_trajectory = joint_trajectory;
+  response->success = true;
+  response->error_code = 0;
+  response->error_message.clear();
 }
 
 void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertToJointVelTrajectory::Request> request, std::shared_ptr<ConvertToJointVelTrajectory::Response> response) {
@@ -223,7 +259,12 @@ void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertT
   std::vector<Point> ref_traj = request->end_effector_trajectory;
   std::vector <DeltaJointVels> joint_velocities;
   const size_t N = ref_traj.size();
-  if (N == 0 || N == 1) return;
+  if (N <= 1) {
+    response->success = false;
+    response->error_code = 1;
+    response->error_message = "Need at least two trajectory points to compute velocities";
+    return;
+  }
   // Create a time vector from 0 to 1 with equal intervals
   double dt = 1.0 / (N - 1);
   // Compute end effector velocities over the reference trajectory using gradient
@@ -231,8 +272,16 @@ void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertT
   RCLCPP_INFO(this->get_logger(), "Computed Gradient");
   // Iterate through the trajectory and convert each point to joint angles
   for (size_t i = 0; i < ref_traj.size(); ++i) {
-    Point p = ref_traj[i]; // End effector position
+    Point p = this->toInternalUnits(ref_traj[i]); // End effector position
     DeltaJoints joints = this->deltaIK(p.x, p.y, p.z);
+    const bool valid = std::isfinite(joints.theta1) && std::isfinite(joints.theta2) && std::isfinite(joints.theta3);
+    if (!valid) {
+      response->success = false;
+      response->error_code = 2;
+      response->error_message = "IK infeasible for at least one trajectory point";
+      response->joint_vel_trajectory.clear();
+      return;
+    }
     EEVelocity v = ee_vel[i]; // End effector velocity
     joint_velocities.push_back(this->calcThetaDot(joints.theta1, joints.theta2, joints.theta3, v.x_vel, v.y_vel, v.z_vel));
   }
@@ -240,6 +289,9 @@ void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertT
 
   // Update the response data (joint velocity trajectory)
   response->joint_vel_trajectory = joint_velocities;
+  response->success = true;
+  response->error_code = 0;
+  response->error_message.clear();
 }
 
 Point DeltaKinematics::deltaFK(float theta1, float theta2, float theta3) {
@@ -306,10 +358,41 @@ DeltaJoints DeltaKinematics::deltaIK(float x, float y, float z) {
     RCLCPP_ERROR(this->get_logger(), "DeltaIK: Non-existing point (%f, %f, %f) [mm]", x, y, z);
   }
   DeltaJoints joints;
+  if (status != 0) {
+    joints.theta1 = std::numeric_limits<float>::quiet_NaN();
+    joints.theta2 = std::numeric_limits<float>::quiet_NaN();
+    joints.theta3 = std::numeric_limits<float>::quiet_NaN();
+    return joints;
+  }
+
   joints.theta1 = theta1;
   joints.theta2 = theta2;
   joints.theta3 = theta3;
   return joints;
+}
+
+bool DeltaKinematics::isCartesianUnitsSupported(const std::string & units) const {
+  return units == "mm" || units == "m";
+}
+
+Point DeltaKinematics::toInternalUnits(const Point & p) const {
+  Point converted = p;
+  if (this->cartesian_units == "m") {
+    converted.x *= 1000.0;
+    converted.y *= 1000.0;
+    converted.z *= 1000.0;
+  }
+  return converted;
+}
+
+Point DeltaKinematics::fromInternalUnits(const Point & p) const {
+  Point converted = p;
+  if (this->cartesian_units == "m") {
+    converted.x /= 1000.0;
+    converted.y /= 1000.0;
+    converted.z /= 1000.0;
+  }
+  return converted;
 }
 
 std::pair<std::vector<double>, std::vector<double>> DeltaKinematics::calcAuxAngles(double theta1, double theta2, double theta3) {

@@ -3,7 +3,7 @@
 <package format="3">
   <name>delta_robot_description</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Robot model, meshes, and materials for the delta robot description package.</description>
 
   <maintainer email="hogehoge@gmail.com">Me</maintainer>
 

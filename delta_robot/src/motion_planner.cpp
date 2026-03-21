@@ -25,7 +25,6 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "motion_planner.hpp"
-#include <numeric>  // add this at the top
 // Include all the custom messages and services
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
 #include "deltarobot_interfaces/srv/delta_fk.hpp"
@@ -34,9 +33,6 @@
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
 #include <fstream>
-
-template<typename T>
-using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
 
 using Point = geometry_msgs::msg::Point;
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
@@ -95,16 +91,22 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         "delta_motion_planner/move_to_point",
         [this](const std::shared_ptr<MoveToPoint::Request> request,
                std::shared_ptr<MoveToPoint::Response> response) {
-          this->moveToPoint(request->target);
-          response->success = true;
+          int32_t error_code = 0;
+          std::string error_message;
+          response->success = this->moveToPoint(request->target, error_code, error_message);
+          response->error_code = error_code;
+          response->error_message = error_message;
         });
 
       this->move_to_configuration_server = create_service<MoveToConfiguration>(
         "delta_motion_planner/move_to_configuration",
         [this](const std::shared_ptr<MoveToConfiguration::Request> request,
                std::shared_ptr<MoveToConfiguration::Response> response) {
-          this->moveToConfiguration(request->target_joint_angles);
-          response->success = true;
+          int32_t error_code = 0;
+          std::string error_message;
+          response->success = this->moveToConfiguration(request->target_joint_angles, error_code, error_message);
+          response->error_code = error_code;
+          response->error_message = error_message;
         });
 
       this->motion_demo_server = create_service<MotionDemo>(
@@ -120,10 +122,12 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         [this]() -> void {
           if (this->playDemo) {
             RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory");
-            this->playTrajectory(this->pringleTrajectory());
-            this->playTrajectory(this->circleTrajectory());
-            this->playTrajectory(this->axesTrajectory());
-            this->playTrajectory(this->randomSampleTrajectory(20));
+            int32_t error_code = 0;
+            std::string error_message;
+            this->playTrajectory(this->pringleTrajectory(), error_code, error_message);
+            this->playTrajectory(this->circleTrajectory(), error_code, error_message);
+            this->playTrajectory(this->axesTrajectory(), error_code, error_message);
+            this->playTrajectory(this->randomSampleTrajectory(20), error_code, error_message);
           }
         });
     });
@@ -140,9 +144,13 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
     if (this->cancel_current_traj) break;
     trajectory_msgs::msg::JointTrajectoryPoint point;
+    const double b1 = joint_traj[i].theta4;
+    const double b2 = joint_traj[i].theta5;
+    const double tilt = (b1 - b2) / 2.0;
+    const double spin = (b1 + b2) / 4.0;
     point.positions = {
       joint_traj[i].theta1, joint_traj[i].theta2, joint_traj[i].theta3,
-      0.0, 0.0, 0.0, 0.0
+      b1, b2, tilt, spin
     };
     // Each point is step_ms further in the future
     const uint64_t t_ns = static_cast<uint64_t>(i + 1) * step_ms * 1000000ULL;
@@ -170,44 +178,64 @@ void DeltaMotionPlanner::publishMotorVelocityCommands(const std::vector<DeltaJoi
   }
 }
 
-void DeltaMotionPlanner::moveToPoint(const Point& point) {
+bool DeltaMotionPlanner::moveToPoint(const Point& point, int32_t & error_code, std::string & error_message) {
+  if (!this->delta_ik_client->service_is_ready()) {
+    error_code = 2;
+    error_message = "delta_ik service is not ready";
+    return false;
+  }
+
   // Perform IK to get the joint angles and to ensure if the point is reachable
   auto ik_request = std::make_shared<DeltaIK::Request>();
   ik_request->solution = point;
 
-  auto future_result = this->delta_ik_client->async_send_request(
+  this->delta_ik_client->async_send_request(
     ik_request,
-    [this](ServiceResponseFuture<DeltaIK> future) {
-    auto response = future.get();
-    if (response->success) {
-      // If the IK solution is valid, move to the point
+    [this](rclcpp::Client<DeltaIK>::SharedFuture future) {
+      auto response = future.get();
+      if (!response->success) {
+        RCLCPP_ERROR(get_logger(), "IK solution not found for requested end effector point");
+        return;
+      }
+
       std::vector<DeltaJoints> joint_traj = {response->joint_angles};
       this->publishMotorCommands(joint_traj, 0);
-    } else {
-      RCLCPP_ERROR(get_logger(), "IK solution not found for the given end effector point");
     }
-  }
   );
+
+  error_code = 0;
+  error_message.clear();
+  return true;
 }
 
-void DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints) {
+bool DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints, int32_t & error_code, std::string & error_message) {
+  if (!this->delta_fk_client->service_is_ready()) {
+    error_code = 2;
+    error_message = "delta_fk service is not ready";
+    return false;
+  }
+
   // Before publishing joint angles, ensure the request is valid using FK
   auto fk_request = std::make_shared<DeltaFK::Request>();
   fk_request->joint_angles = joints;
 
-  auto future_result = this->delta_fk_client->async_send_request(
+  this->delta_fk_client->async_send_request(
     fk_request,
-    [this, joints](ServiceResponseFuture<DeltaFK> future) {
-    auto response = future.get();
-    if (response->success) {
-      // If the FK solution is valid, move to the configuration
+    [this, joints](rclcpp::Client<DeltaFK>::SharedFuture future) {
+      auto response = future.get();
+      if (!response->success) {
+        RCLCPP_ERROR(get_logger(), "FK validation failed for requested joint configuration");
+        return;
+      }
+
       std::vector<DeltaJoints> joint_traj = {joints};
       this->publishMotorCommands(joint_traj, 0);
-    } else {
-      RCLCPP_ERROR(get_logger(), "FK solution not found for the given joint angles");
     }
-  }
   );
+
+  error_code = 0;
+  error_message.clear();
+  return true;
 }
 
 void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
@@ -215,69 +243,93 @@ void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
   (void)points;
 }
 
-void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
+bool DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory, int32_t & error_code, std::string & error_message) {
+  if (!this->convert_to_joint_trajectory_client->service_is_ready()) {
+    error_code = 2;
+    error_message = "convert_to_joint_trajectory service is not ready";
+    return false;
+  }
+
   // Create a joint trajectory using the convert_to_joint_trajectory service
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
   convert_request->end_effector_trajectory = trajectory;
 
-  auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-  // ---------- BEGIN_CITATION [1] ----------
-  auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
+  this->convert_to_joint_trajectory_client->async_send_request(
     convert_request,
-    [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
-    auto response = future.get();
-    *joint_traj = response->joint_trajectory;
+    [this](rclcpp::Client<ConvertToJointTrajectory>::SharedFuture future) {
+      auto response = future.get();
+      if (!response->success) {
+        const auto msg = response->error_message.empty() ? "Failed to convert end-effector trajectory" : response->error_message;
+        RCLCPP_ERROR(get_logger(), "Trajectory conversion failed [code=%d]: %s", response->error_code, msg.c_str());
+        return;
+      }
 
-    // Cancel existing trajectory if any
-    this->cancel_current_traj = true;
-    if (this->traj_thread && this->traj_thread->joinable()) {
-      this->traj_thread->join();
+      auto joint_traj = std::make_shared<std::vector<DeltaJoints>>(response->joint_trajectory);
+      if (joint_traj->empty()) {
+        RCLCPP_ERROR(get_logger(), "Converted joint trajectory is empty");
+        return;
+      }
+
+      // Cancel existing trajectory if any
+      this->cancel_current_traj = true;
+      if (this->traj_thread && this->traj_thread->joinable()) {
+        this->traj_thread->join();
+      }
+      this->cancel_current_traj = false;
+
+      // Start new trajectory thread
+      this->traj_thread = std::make_unique<std::thread>([this, joint_traj]() {
+        // Reload parameter in case it changed
+        this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
+        this->publishMotorCommands(*joint_traj, this->param_traj_step_ms);
+      });
+      this->traj_thread->detach();
     }
-    this->cancel_current_traj = false;
-
-    // Start new trajectory thread
-    this->traj_thread = std::make_unique<std::thread>([this, joint_traj]() {
-      // Reload parameter in case it changed
-      this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
-      this->publishMotorCommands(*joint_traj, this->param_traj_step_ms);
-    });
-    this->traj_thread->detach(); // Allow it to run independently
-  }
   );
-  // ---------- END_CITATION [1] ----------
+
+  error_code = 0;
+  error_message = "Trajectory request accepted";
+  return true;
 }
 
 void DeltaMotionPlanner::playDemoTrajectory(
   std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response) {
 
-  std::string type = request->type.data;
   std::vector<Point> trajectory;
-  const std::vector<std::string> available_demos = {"up_down", "pringle", "axes", "circle", "scan"};
-  if (type == "up_down") {
+  const uint8_t demo_type = request->demo_type;
+  std::string demo_name;
+
+  if (demo_type == 0) {
     trajectory = this->straightUpDownTrajectory();
-  } else if (type == "pringle") {
+    demo_name = "up_down";
+  } else if (demo_type == 1) {
     trajectory = this->pringleTrajectory();
-  } else if (type == "axes") {
+    demo_name = "pringle";
+  } else if (demo_type == 2) {
     trajectory = this->axesTrajectory();
-  } else if (type == "circle") {
+    demo_name = "axes";
+  } else if (demo_type == 3) {
     trajectory = this->circleTrajectory();
-  } else if (type == "scan") {
+    demo_name = "circle";
+  } else if (demo_type == 4) {
     trajectory = this->scanTrajectory();
+    demo_name = "scan";
   } else {
-    RCLCPP_ERROR(get_logger(), "Invalid demo trajectory: %s", type.c_str());
-    RCLCPP_ERROR(get_logger(), "Available demo trajectories: %s", std::accumulate(
-      std::next(available_demos.begin()), available_demos.end(), available_demos[0],
-      [](std::string a, std::string b) { return a + ", " + b; }
-    ).c_str());
+    RCLCPP_ERROR(get_logger(), "Invalid demo trajectory type: %u", static_cast<unsigned int>(demo_type));
     response->success = false;
+    response->error_code = 1;
+    response->error_message = "Invalid demo_type. Expected 0..4";
     return;
   }
-  RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s", type.c_str());
+  RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s", demo_name.c_str());
 
-  this->playTrajectory(trajectory);
+  int32_t error_code = 0;
+  std::string error_message;
+  const bool ok = this->playTrajectory(trajectory, error_code, error_message);
 
-  // Signal success
-  response->success = true;
+  response->success = ok;
+  response->error_code = error_code;
+  response->error_message = error_message;
 }
 
 std::vector<Point> DeltaMotionPlanner::scanTrajectory() {

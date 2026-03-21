@@ -663,7 +663,7 @@
         <parent link="base"/>
         <child link="forearm1"/>
         <dynamics damping="0" friction="0"/>
-        <limit effort="2" velocity="25" lower="-2.00713" upper="2.00713"/>
+        <limit effort="2" velocity="11.1" lower="-2.00713" upper="2.00713"/>
     </joint>
     <joint name="jbf2" type="revolute">
         <origin xyz="-0.0749497 0.0768166 0" rpy="0 -0 0"/>
@@ -671,7 +671,7 @@
         <parent link="base"/>
         <child link="forearm2"/>
         <dynamics damping="0" friction="0"/>
-        <limit effort="2" velocity="25" lower="-2.00713" upper="2.00713"/>
+        <limit effort="2" velocity="11.1" lower="-2.00713" upper="2.00713"/>
     </joint>
     <joint name="jbf3" type="revolute">
         <origin xyz="-0.0290503 -0.103317 0" rpy="0 -0 0"/>
@@ -679,7 +679,7 @@
         <parent link="base"/>
         <child link="forearm3"/>
         <dynamics damping="0" friction="0"/>
-        <limit effort="2" velocity="25" lower="-2.00713" upper="2.00713"/>
+        <limit effort="2" velocity="11.1" lower="-2.00713" upper="2.00713"/>
     </joint>
     <joint name="virtual_joint" type="fixed">
         <origin xyz="0 0 0" rpy="0 -0 0"/>

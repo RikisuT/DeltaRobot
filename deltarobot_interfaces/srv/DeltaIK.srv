@@ -1,4 +1,4 @@
-geometry_msgs/Point solution # [mm]
+geometry_msgs/Point solution # [cartesian_units from delta_kinematics params]
 ---
 DeltaJoints joint_angles
 bool success

@@ -1,0 +1,52 @@
+
+Repository/meta/docs
+1. .gitignore: updated ignore rules to match new workflow artifacts; reduces accidental commits of local/generated files.
+2. .gitmodules: added upstream SCServo submodule reference; gives a reproducible source for servo SDK integration.
+3. README.md: updated run/build/service examples (including new demo_type and contract notes); reduces operator mistakes and migration confusion.
+
+Core robot package
+1. CMakeLists.txt: added pytest test registration; enables automated regression checks.
+2. README.md: documented kinematics unit boundary and move service semantics; clarifies runtime expectations.
+3. delta_config.yaml: added cartesian_units and updated control params; makes unit handling explicit and configurable.
+4. joint_state_bridge.py: simulation feedback bridge refinements; improves sim-to-control topic compatibility.
+5. motor_control_node.py: major hardening (safe speed/accel bounds, retries/watchdog, graceful no-hardware mode, reduced crash noise); improves reliability and operator experience when motors are missing.
+6. kinematics.hpp: added unit-conversion and IK feasibility helper declarations; supports safer conversions and fail-fast behavior.
+7. motion_planner.hpp: move APIs updated to return structured status/error codes; enables robust client-side handling.
+8. delta_robot.launch.py: added run_motor_control launch arg (default false); prevents unnecessary hardware-node failures in non-hardware runs.
+9. package.xml: added test dependencies; ensures tests are installable/runnable in ROS build pipeline.
+10. kinematics.cpp: unit-boundary conversion, explicit error_code responses, fail-fast IK for trajectories; prevents partial/broken trajectory execution.
+11. motion_planner.cpp: improved service readiness checks, response error_code propagation, better conversion-failure logging; makes behavior observable and debuggable.
+12. range_scanner.cpp: service/wait behavior cleanup; reduces startup race issues.
+
+Robot description
+1. box.sdf: replaced absolute texture path with package URI; fixes portability across machines.
+2. model.sdf: replaced fragile find macro with explicit placeholder for launch-time substitution; improves robustness of ros2_control config injection.
+3. model.urdf: model/joint consistency updates from integration pass; aligns description with control stack expectations.
+
+Simulation package
+1. CMakeLists.txt: added pytest test target; enables automatic config sanity checks.
+2. ros2_controllers.yaml: completed missing PID gains for listed joints; avoids underdefined controller behavior.
+3. delta_robot_spawn.launch.py: hardened placeholder replacement + config existence checks, retained use_sim_time false for your real-bot preference; avoids launch-time silent misconfig.
+4. package.xml: added pytest test dependencies; supports CI/test execution.
+5. plotter3d.py: plotting/runtime cleanup from integration wave; improves observability during tests/demos.
+
+Interfaces package
+1. CMakeLists.txt: added pytest contract tests; protects against accidental interface regressions.
+2. RobotConfig.msg: clarified end-effector unit comment tied to cartesian_units; removes ambiguity.
+3. package.xml: added pytest dependencies; enables interface test execution.
+4. ConvertToJointTrajectory.srv: added success + error_code + error_message; makes conversion outcomes machine-readable.
+5. ConvertToJointVelTrajectory.srv: same structured status fields; consistent error handling for velocity conversion.
+6. DeltaFK.srv: clarified units semantics; aligns with configurable boundary units.
+7. DeltaIK.srv: clarified units semantics; aligns with configurable boundary units.
+8. MoveToConfiguration.srv: added error_code + error_message; better command acceptance diagnostics.
+9. MoveToPoint.srv: added error_code + error_message; better command acceptance diagnostics.
+10. PlayDemoTrajectory.srv: switched from string type to enum-like demo_type; prevents typo-driven runtime errors.
+
+SCServo SDK package additions
+1. LICENSE, package.xml, setup.cfg, setup.py, see_motors.py, scservo_sdk, __init__.py, test_copyright.py, test_flake8.py, test_pep257.py: introduces packaged SCServo integration and basic lint/test scaffolding; enables direct motor SDK use in ROS workspace.
+
+New untracked files currently in working tree
+1. test_units_boundary.py: regression test for cartesian_units boundary behavior.
+2. test_config_sanity.py: checks controller gains completeness and model placeholder sanity.
+3. test_service_contracts.py: contract tests for updated service schemas.
+4. external: external upstream SDK checkout/submodule content for SCServo backend.
