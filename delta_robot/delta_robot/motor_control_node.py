@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys
+import glob
 import math
 import rclpy
 from rclpy.node import Node
@@ -20,20 +20,25 @@ from scservo_sdk.sms_sts import (
 )
 
 # ST Servo Constants
-BAUDRATE = 1000000
+BAUDRATE = 500000
 DEVICE_NAME = "/dev/ttyUSB0"
+MAX_ST_MOVING_SPEED = 7500
+MAX_ST_MOVING_ACC = 254
 
 # Converting from radians to motor position mapping
 # Motor Position 0-4095 corresponds to 360 degrees (2*pi radians)
-# 2048 is the middle position (0 radians)
-MOTOR_MID_POS = 2048
+# 2048 is the center position (0 radians)
 MOTOR_MAX_POS = 4095
 RAD_TO_TICKS = 4096.0 / (2.0 * math.pi)
-UP_POS = 2048.0  # Center position corresponds to 0 radians
+UP_POS = 2048.0
 
-# Velocity limit range is 0~4095. ST3215-HS uses 50 steps/sec ≈ 0.732 RPM.
+# Velocity limit range is 0~7500. ST3215-HS uses 50 steps/sec ≈ 0.732 RPM.
 VEL_UNIT_RPM = 0.732 / 50.0  # units in RPM per (step/sec)
 RAD_S_TO_REV_MIN = 60.0 / (2.0 * math.pi)
+
+BICEP_IDS = [1, 2, 3]
+EE_IDS = [4, 5]
+ALL_MOTOR_IDS = BICEP_IDS + EE_IDS
 
 
 class DeltaMotorControl(Node):
@@ -42,57 +47,32 @@ class DeltaMotorControl(Node):
         self.get_logger().info("Python DeltaMotorControl Node Started")
 
         self.qos_depth = self.declare_parameter("qos_depth", 10).value
+        self.device_name = self.declare_parameter("device_name", DEVICE_NAME).value
+        self.baudrate = int(self.declare_parameter("baudrate", BAUDRATE).value)
+        self.bicep_moving_speed = int(self.declare_parameter("moving_speed", 0).value)
+        self.bicep_moving_acc = int(self.declare_parameter("moving_acc", 0).value)
+        self.ee_moving_speed = int(self.declare_parameter("ee_moving_speed", 0).value)
+        self.ee_moving_acc = int(self.declare_parameter("ee_moving_acc", 0).value)
+        self.max_write_retries = int(self.declare_parameter("max_write_retries", 3).value)
+        self.read_fail_watchdog_limit = int(self.declare_parameter("read_fail_watchdog_limit", 5).value)
 
-        # Initialize PortHandler and PacketHandler
-        self.portHandler = PortHandler(DEVICE_NAME)
-        self.packetHandler = SMS_STS(self.portHandler)
+        self.bicep_moving_speed = max(0, min(MAX_ST_MOVING_SPEED, self.bicep_moving_speed))
+        self.bicep_moving_acc = max(0, min(MAX_ST_MOVING_ACC, self.bicep_moving_acc))
+        self.ee_moving_speed = max(0, min(MAX_ST_MOVING_SPEED, self.ee_moving_speed))
+        self.ee_moving_acc = max(0, min(MAX_ST_MOVING_ACC, self.ee_moving_acc))
+        self.max_write_retries = max(1, self.max_write_retries)
+        self.read_fail_watchdog_limit = max(1, self.read_fail_watchdog_limit)
+        self.consecutive_read_failures = 0
 
-        # Open port
-        if self.portHandler.openPort():
-            self.get_logger().info(f"Succeeded to open the port {DEVICE_NAME}")
-        else:
-            self.get_logger().error(f"Failed to open the port {DEVICE_NAME}")
-            sys.exit(1)
+        # Initialize SDK handlers after probing serial candidates.
+        self.portHandler = None
+        self.packetHandler = None
+        self.groupSyncRead = None
+        self.hardware_available = False
+        self.visible_motor_ids = []
+        self.missing_motor_ids = list(ALL_MOTOR_IDS)
 
-        # Set port baudrate
-        if self.portHandler.setBaudRate(BAUDRATE):
-            self.get_logger().info(f"Succeeded to change the baudrate to {BAUDRATE}")
-        else:
-            self.get_logger().error(f"Failed to change the baudrate to {BAUDRATE}")
-            sys.exit(1)
-
-        # Enable Torque for ID 1, 2, 3
-        for st_id in range(1, 4):
-            self.packetHandler.write1ByteTxRx(
-                st_id, 40, 1
-            )  # Register 40 is Torque Enable
-            self.get_logger().info(f"Torque enabled for Motor ID: {st_id}")
-
-        self.groupSyncRead = GroupSyncRead(
-            self.packetHandler, SMS_STS_PRESENT_POSITION_L, 11
-        )
-
-        # Startup Servo Connectivity Check
-        self.get_logger().info("Checking servo connectivity...")
-        for st_id in range(1, 4):
-            self.groupSyncRead.addParam(st_id)
-
-        st_comm_result = self.groupSyncRead.txRxPacket()
-        if st_comm_result == COMM_SUCCESS:
-            for st_id in range(1, 4):
-                st_data_result, _ = self.groupSyncRead.isAvailable(
-                    st_id, SMS_STS_PRESENT_POSITION_L, 2
-                )
-                if st_data_result:
-                    self.get_logger().info(f"Servo ID:{st_id:03d} Found")
-                else:
-                    self.get_logger().warn(f"Servo ID:{st_id:03d} NOT Found")
-        else:
-            self.get_logger().error(
-                f"Startup GroupSyncRead failed: {self.packetHandler.getTxRxResult(st_comm_result)}"
-            )
-
-        self.groupSyncRead.clearParam()
+        self._initialize_hardware()
 
         # Subscribers
         self.delta_joints_sub = self.create_subscription(
@@ -133,6 +113,101 @@ class DeltaMotorControl(Node):
         # Timer (50Hz - increased for better control and plotter resolution)
         self.timer = self.create_timer(1.0 / 50.0, self.timer_callback)
 
+    def _get_candidate_ports(self, preferred_port):
+        """Return likely serial ports with preferred first when present."""
+        detected_ports = sorted(glob.glob("/dev/ttyUSB*")) + sorted(glob.glob("/dev/ttyACM*"))
+
+        candidates = []
+        if preferred_port:
+            candidates.append(preferred_port)
+
+        for port in detected_ports:
+            if port not in candidates:
+                candidates.append(port)
+
+        return candidates
+
+    def _ping_servo(self, servo_id):
+        """Check if a servo responds to ping."""
+        try:
+            _, scs_comm_result, _ = self.packetHandler.ping(servo_id)
+            return scs_comm_result == COMM_SUCCESS
+        except Exception:
+            return False
+
+    def _initialize_hardware(self):
+        candidate_ports = self._get_candidate_ports(self.device_name)
+        if not candidate_ports:
+            self.get_logger().warning(
+                "No serial ports found (expected /dev/ttyUSB* or /dev/ttyACM*); running in no-hardware mode"
+            )
+            self.hardware_available = False
+            return
+
+        self.get_logger().info(f"Trying serial ports: {candidate_ports}")
+        port_errors = []
+
+        for port_path in candidate_ports:
+            try:
+                trial_port = PortHandler(port_path)
+                trial_packet = SMS_STS(trial_port)
+
+                if not trial_port.openPort():
+                    port_errors.append(f"{port_path}: openPort() returned False")
+                    continue
+
+                if not trial_port.setBaudRate(self.baudrate):
+                    port_errors.append(f"{port_path}: failed to set baudrate {self.baudrate}")
+                    trial_port.closePort()
+                    continue
+
+                self.portHandler = trial_port
+                self.packetHandler = trial_packet
+                self.device_name = port_path
+                self.get_logger().info(f"Connected on {port_path} @ {self.baudrate}")
+                break
+
+            except Exception as exc:
+                port_errors.append(f"{port_path}: {exc}")
+
+        if self.portHandler is None or self.packetHandler is None:
+            self.get_logger().warning("Could not open any serial port; running in no-hardware mode")
+            for err in port_errors:
+                self.get_logger().warning(f"  - {err}")
+            self.hardware_available = False
+            return
+
+        self.get_logger().info(f"Scanning servo IDs: {ALL_MOTOR_IDS}")
+        self.visible_motor_ids = []
+        self.missing_motor_ids = []
+
+        for st_id in ALL_MOTOR_IDS:
+            if self._ping_servo(st_id):
+                self.visible_motor_ids.append(st_id)
+                self.get_logger().info(f"Servo ID:{st_id:03d} Found")
+            else:
+                self.missing_motor_ids.append(st_id)
+                self.get_logger().warning(f"Servo ID:{st_id:03d} NOT Found")
+
+        self.get_logger().info(
+            f"Visible motors ({len(self.visible_motor_ids)}/{len(ALL_MOTOR_IDS)}): {self.visible_motor_ids}"
+        )
+        if self.missing_motor_ids:
+            self.get_logger().warning(f"Missing motors: {self.missing_motor_ids}")
+
+        if not self.visible_motor_ids:
+            self.get_logger().warning("No servos detected; running in no-hardware mode")
+            self.portHandler.closePort()
+            self.hardware_available = False
+            return
+
+        for st_id in self.visible_motor_ids:
+            self.packetHandler.write1ByteTxRx(st_id, 40, 1)
+            self.get_logger().info(f"Torque enabled for Motor ID: {st_id}")
+
+        self.groupSyncRead = GroupSyncRead(self.packetHandler, SMS_STS_PRESENT_POSITION_L, 11)
+        self.hardware_available = True
+
     def convert_to_radians(self, motor_pos):
         return (motor_pos - UP_POS) / RAD_TO_TICKS
 
@@ -143,27 +218,38 @@ class DeltaMotorControl(Node):
     def convert_to_motor_velocity(self, theta_vel):
         rpm = RAD_S_TO_REV_MIN * theta_vel
         # Convert rpm to step/sec
-        return int(
-            abs(rpm / VEL_UNIT_RPM)
-        )  # Velocity command is absolute, direction based on position target
+        raw = int(abs(rpm / VEL_UNIT_RPM))
+        return max(0, min(MAX_ST_MOVING_SPEED, raw))
+
+    def speed_acc_for_id(self, st_id):
+        if st_id in EE_IDS:
+            return self.ee_moving_speed, self.ee_moving_acc
+        return self.bicep_moving_speed, self.bicep_moving_acc
+
+    def _get_joint_value(self, msg, index, velocity=False):
+        """Return theta/theta_vel value from message, defaulting to 0 if absent."""
+        field = f"theta{index}_vel" if velocity else f"theta{index}"
+        return getattr(msg, field, 0.0)
 
     def set_joints_callback(self, msg):
+        if not self.hardware_available:
+            self.get_logger().debug("Ignoring set_joints: hardware unavailable")
+            return
+
         motor_positions = [
-            self.convert_to_motor_position(msg.theta1),
-            self.convert_to_motor_position(msg.theta2),
-            self.convert_to_motor_position(msg.theta3),
+            self.convert_to_motor_position(self._get_joint_value(msg, 1)),
+            self.convert_to_motor_position(self._get_joint_value(msg, 2)),
+            self.convert_to_motor_position(self._get_joint_value(msg, 3)),
+            self.convert_to_motor_position(self._get_joint_value(msg, 4)),
+            self.convert_to_motor_position(self._get_joint_value(msg, 5)),
         ]
 
-        # Max speed settings for ST3215-HS
-        # Based on Waveshare/Feetech specs: max speed is 4000.
-        # Software unit: 0-4095 is position range. 0-4000 is speed range.
-        # Acceleration: 0-254. 254 is maximum snappiness.
-        st_moving_speed = 8000  # Increased from 4000 to allow 100+ RPM
-        st_moving_acc = 0  # Added slight acceleration for smoothness
-
-        # Adding parameters to sync write
+        # For this setup, speed=0 is intentionally used as the fastest mode.
         for i, pos in enumerate(motor_positions):
             st_id = i + 1
+            if st_id not in self.visible_motor_ids:
+                continue
+            st_moving_speed, st_moving_acc = self.speed_acc_for_id(st_id)
             result = self.packetHandler.SyncWritePosEx(
                 st_id, pos, st_moving_speed, st_moving_acc
             )
@@ -173,7 +259,11 @@ class DeltaMotorControl(Node):
                 )
 
         # Syncwrite goal position
-        st_comm_result = self.packetHandler.groupSyncWrite.txPacket()
+        st_comm_result = COMM_SUCCESS
+        for _ in range(self.max_write_retries):
+            st_comm_result = self.packetHandler.groupSyncWrite.txPacket()
+            if st_comm_result == COMM_SUCCESS:
+                break
         if st_comm_result != COMM_SUCCESS:
             self.get_logger().error(
                 f"SyncWrite failed: {self.packetHandler.getTxRxResult(st_comm_result)}"
@@ -189,13 +279,19 @@ class DeltaMotorControl(Node):
         self.get_logger().debug(f"Motor Positions Set: {motor_positions} [motor ticks]")
 
     def set_joint_vels_callback(self, msg):
+        if not self.hardware_available:
+            self.get_logger().debug("Ignoring set_joint_vels: hardware unavailable")
+            return
+
         # NOTE: Using SyncWritePosEx for velocity control as wheel mode (continuous rotation)
         # is typically not used for Delta robot arms which have strict position limits.
         # This implementation matches the old dynamixel logic conceptually.
         motor_vels = [
-            self.convert_to_motor_velocity(msg.theta1_vel),
-            self.convert_to_motor_velocity(msg.theta2_vel),
-            self.convert_to_motor_velocity(msg.theta3_vel),
+            self.convert_to_motor_velocity(self._get_joint_value(msg, 1, velocity=True)),
+            self.convert_to_motor_velocity(self._get_joint_value(msg, 2, velocity=True)),
+            self.convert_to_motor_velocity(self._get_joint_value(msg, 3, velocity=True)),
+            self.convert_to_motor_velocity(self._get_joint_value(msg, 4, velocity=True)),
+            self.convert_to_motor_velocity(self._get_joint_value(msg, 5, velocity=True)),
         ]
 
         # For true velocity control we'd need to use WheelMode, but for now we issue speed commands
@@ -203,12 +299,14 @@ class DeltaMotorControl(Node):
         # If true wheel mode is needed, self.packetHandler.WriteSpe() can be used per servo.
         for i, vel in enumerate(motor_vels):
             st_id = i + 1
+            if st_id not in self.visible_motor_ids:
+                continue
             # We set wheel mode (speed control) for this servo
             self.packetHandler.WheelMode(st_id)
             # Write speed (Note: WriteSpe is not part of groupSyncWrite in the provided python, but we can do consecutive writes)
             # In ST_Servo speed control, bit 15 determines direction.
             # Convert signed velocity to magnitude + direction bit
-            target_vel = msg.__getattribute__(f"theta{st_id}_vel")
+            target_vel = self._get_joint_value(msg, st_id, velocity=True)
             speed = vel
             if target_vel < 0:
                 speed |= 1 << 15
@@ -218,10 +316,15 @@ class DeltaMotorControl(Node):
         self.get_logger().debug(f"Motor Velocities Set: {motor_vels} [ticks/s]")
 
     def set_joint_limits_callback(self, request, response):
+        if not self.hardware_available:
+            self.get_logger().warning("set_joint_limits requested but hardware is unavailable")
+            response.success = True
+            return response
+
         motor_min = self.convert_to_motor_position(request.min_rad)
         motor_max = self.convert_to_motor_position(request.max_rad)
 
-        for st_id in range(1, 4):
+        for st_id in self.visible_motor_ids:
             # The python SDK doesn't expose a direct "write 2 bytes to register" for arbitrary registers
             # easily in the high-level class outside of WritePosEx. We can use write2ByteTxRx from PacketHandler
             # Min/Max angle limits are registers 9, 10 and 11, 12.
@@ -243,8 +346,11 @@ class DeltaMotorControl(Node):
         return response
 
     def timer_callback(self):
-        # Add parameter storage for ST Servo#1~3 present position value
-        for st_id in range(1, 4):
+        if not self.hardware_available or self.groupSyncRead is None:
+            return
+
+        # Add parameter storage for configured servo IDs present position value
+        for st_id in self.visible_motor_ids:
             st_addparam_result = self.groupSyncRead.addParam(st_id)
             if not st_addparam_result:
                 self.get_logger().error(
@@ -253,13 +359,22 @@ class DeltaMotorControl(Node):
 
         st_comm_result = self.groupSyncRead.txRxPacket()
         if st_comm_result != COMM_SUCCESS:
-            # Just debug log to not spam if bus is busy
+            self.consecutive_read_failures += 1
             self.get_logger().debug(self.packetHandler.getTxRxResult(st_comm_result))
+            if self.consecutive_read_failures >= self.read_fail_watchdog_limit:
+                self.get_logger().warning(
+                    "Read watchdog tripped after %d failures; disabling hardware I/O"
+                    % self.consecutive_read_failures
+                )
+                self.hardware_available = False
+            self.groupSyncRead.clearParam()
+            return
+        self.consecutive_read_failures = 0
 
-        motor_positions = [0, 0, 0]
-        motor_velocities = [0, 0, 0]
+        motor_positions = [0] * len(ALL_MOTOR_IDS)
+        motor_velocities = [0] * len(ALL_MOTOR_IDS)
 
-        for st_id in range(1, 4):
+        for st_id in self.visible_motor_ids:
             st_data_result, st_error = self.groupSyncRead.isAvailable(
                 st_id, SMS_STS_PRESENT_POSITION_L, 11
             )
@@ -296,14 +411,28 @@ class DeltaMotorControl(Node):
         pos_msg.header.stamp = self.get_clock().now().to_msg()
         vel_msg.header.stamp = self.get_clock().now().to_msg()
 
-        pos_msg.theta1 = self.convert_to_radians(motor_positions[0])
-        pos_msg.theta2 = self.convert_to_radians(motor_positions[1])
-        pos_msg.theta3 = self.convert_to_radians(motor_positions[2])
+        if hasattr(pos_msg, "theta1"):
+            pos_msg.theta1 = self.convert_to_radians(motor_positions[0])
+        if hasattr(pos_msg, "theta2"):
+            pos_msg.theta2 = self.convert_to_radians(motor_positions[1])
+        if hasattr(pos_msg, "theta3"):
+            pos_msg.theta3 = self.convert_to_radians(motor_positions[2])
+        if hasattr(pos_msg, "theta4"):
+            pos_msg.theta4 = self.convert_to_radians(motor_positions[3])
+        if hasattr(pos_msg, "theta5"):
+            pos_msg.theta5 = self.convert_to_radians(motor_positions[4])
 
         # ticks/sec -> rpm -> rad/s
-        vel_msg.theta1_vel = motor_velocities[0] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
-        vel_msg.theta2_vel = motor_velocities[1] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
-        vel_msg.theta3_vel = motor_velocities[2] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+        if hasattr(vel_msg, "theta1_vel"):
+            vel_msg.theta1_vel = motor_velocities[0] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+        if hasattr(vel_msg, "theta2_vel"):
+            vel_msg.theta2_vel = motor_velocities[1] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+        if hasattr(vel_msg, "theta3_vel"):
+            vel_msg.theta3_vel = motor_velocities[2] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+        if hasattr(vel_msg, "theta4_vel"):
+            vel_msg.theta4_vel = motor_velocities[3] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+        if hasattr(vel_msg, "theta5_vel"):
+            vel_msg.theta5_vel = motor_velocities[4] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
 
         self.motor_positions_pub.publish(pos_msg)
         self.motor_velocities_pub.publish(vel_msg)
@@ -322,7 +451,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.portHandler.closePort()
+        if hasattr(node, "portHandler"):
+            node.portHandler.closePort()
         node.destroy_node()
         rclpy.shutdown()
 
