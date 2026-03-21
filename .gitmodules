@@ -1,6 +1,3 @@
-[submodule "external/FTServo_Python"]
-	path = external/FTServo_Python
-	url = https://github.com/ftservo/FTServo_Python
 [submodule "scservo_sdk/external/FTServo_Python"]
 	path = scservo_sdk/external/FTServo_Python
 	url = https://github.com/ftservo/FTServo_Python
