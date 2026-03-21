@@ -10,6 +10,7 @@
 #include "deltarobot_interfaces/srv/move_to_point.hpp"
 #include "deltarobot_interfaces/srv/move_to_configuration.hpp"
 #include "deltarobot_interfaces/srv/motion_demo.hpp"
+#include "deltarobot_interfaces/srv/play_custom_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
 #include <thread>
@@ -25,6 +26,7 @@ using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using MoveToPoint = deltarobot_interfaces::srv::MoveToPoint;
 using MoveToConfiguration = deltarobot_interfaces::srv::MoveToConfiguration;
 using MotionDemo = deltarobot_interfaces::srv::MotionDemo;
+using PlayCustomTrajectory = deltarobot_interfaces::srv::PlayCustomTrajectory;
 
 class DeltaMotionPlanner : public rclcpp::Node {
 public:
@@ -54,6 +56,7 @@ private:
   rclcpp::Service<MoveToPoint>::SharedPtr move_to_point_server;
   rclcpp::Service<MoveToConfiguration>::SharedPtr move_to_configuration_server;
   rclcpp::Service<MotionDemo>::SharedPtr motion_demo_server;
+  rclcpp::Service<PlayCustomTrajectory>::SharedPtr play_custom_trajectory_server;
 
   // Clients
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
@@ -69,6 +72,9 @@ private:
   void moveThroughPoints(const std::vector<Point>& points);
 
   void playTrajectory(const std::vector<Point> trajectory);
+  void playCustomTrajectory(
+    const std::shared_ptr<PlayCustomTrajectory::Request> request,
+    std::shared_ptr<PlayCustomTrajectory::Response> response);
   void playDemoTrajectory(const std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response);
 
   std::vector<Point> readCSV(const std::string& fileName);

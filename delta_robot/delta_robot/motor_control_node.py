@@ -55,6 +55,9 @@ class DeltaMotorControl(Node):
         self.ee_moving_acc = int(self.declare_parameter("ee_moving_acc", 0).value)
         self.max_write_retries = int(self.declare_parameter("max_write_retries", 3).value)
         self.read_fail_watchdog_limit = int(self.declare_parameter("read_fail_watchdog_limit", 5).value)
+        self.enable_velocity_feedback = bool(
+            self.declare_parameter("enable_velocity_feedback", False).value
+        )
 
         self.bicep_moving_speed = max(0, min(MAX_ST_MOVING_SPEED, self.bicep_moving_speed))
         self.bicep_moving_acc = max(0, min(MAX_ST_MOVING_ACC, self.bicep_moving_acc))
@@ -100,9 +103,11 @@ class DeltaMotorControl(Node):
         self.motor_positions_pub = self.create_publisher(
             DeltaJoints, "delta_motors/motor_position_feedback", 10
         )
-        self.motor_velocities_pub = self.create_publisher(
-            DeltaJointVels, "delta_motors/motor_velocity_feedback", 10
-        )
+        self.motor_velocities_pub = None
+        if self.enable_velocity_feedback:
+            self.motor_velocities_pub = self.create_publisher(
+                DeltaJointVels, "delta_motors/motor_velocity_feedback", 10
+            )
         self.servo_target_pub = self.create_publisher(
             Float32MultiArray, "/servo/target", 10
         )
@@ -205,7 +210,10 @@ class DeltaMotorControl(Node):
             self.packetHandler.write1ByteTxRx(st_id, 40, 1)
             self.get_logger().info(f"Torque enabled for Motor ID: {st_id}")
 
-        self.groupSyncRead = GroupSyncRead(self.packetHandler, SMS_STS_PRESENT_POSITION_L, 11)
+        read_len = 11 if self.enable_velocity_feedback else 2
+        self.groupSyncRead = GroupSyncRead(
+            self.packetHandler, SMS_STS_PRESENT_POSITION_L, read_len
+        )
         self.hardware_available = True
 
     def convert_to_radians(self, motor_pos):
@@ -375,17 +383,19 @@ class DeltaMotorControl(Node):
         motor_velocities = [0] * len(ALL_MOTOR_IDS)
 
         for st_id in self.visible_motor_ids:
+            avail_len = 11 if self.enable_velocity_feedback else 2
             st_data_result, st_error = self.groupSyncRead.isAvailable(
-                st_id, SMS_STS_PRESENT_POSITION_L, 11
+                st_id, SMS_STS_PRESENT_POSITION_L, avail_len
             )
             if st_data_result:
                 pres_pos = self.groupSyncRead.getData(
                     st_id, SMS_STS_PRESENT_POSITION_L, 2
                 )
-                pres_spd = self.groupSyncRead.getData(st_id, SMS_STS_PRESENT_SPEED_L, 2)
-
-                # Handling signed speed (15th bit is direction)
-                spd_val = self.packetHandler.scs_tohost(pres_spd, 15)
+                spd_val = 0
+                if self.enable_velocity_feedback:
+                    pres_spd = self.groupSyncRead.getData(st_id, SMS_STS_PRESENT_SPEED_L, 2)
+                    # Handling signed speed (15th bit is direction)
+                    spd_val = self.packetHandler.scs_tohost(pres_spd, 15)
 
                 # Safety check: If position is 0, it usually means a read failure or uninitialized ID
                 # 0 ticks corresponds to -PI which is out of bounds for DeltaRobot kinematics
@@ -406,10 +416,13 @@ class DeltaMotorControl(Node):
 
         # Convert and Publish
         pos_msg = DeltaJoints()
-        vel_msg = DeltaJointVels()
+        vel_msg = None
+        if self.enable_velocity_feedback:
+            vel_msg = DeltaJointVels()
 
         pos_msg.header.stamp = self.get_clock().now().to_msg()
-        vel_msg.header.stamp = self.get_clock().now().to_msg()
+        if vel_msg is not None:
+            vel_msg.header.stamp = self.get_clock().now().to_msg()
 
         if hasattr(pos_msg, "theta1"):
             pos_msg.theta1 = self.convert_to_radians(motor_positions[0])
@@ -422,20 +435,22 @@ class DeltaMotorControl(Node):
         if hasattr(pos_msg, "theta5"):
             pos_msg.theta5 = self.convert_to_radians(motor_positions[4])
 
-        # ticks/sec -> rpm -> rad/s
-        if hasattr(vel_msg, "theta1_vel"):
-            vel_msg.theta1_vel = motor_velocities[0] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
-        if hasattr(vel_msg, "theta2_vel"):
-            vel_msg.theta2_vel = motor_velocities[1] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
-        if hasattr(vel_msg, "theta3_vel"):
-            vel_msg.theta3_vel = motor_velocities[2] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
-        if hasattr(vel_msg, "theta4_vel"):
-            vel_msg.theta4_vel = motor_velocities[3] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
-        if hasattr(vel_msg, "theta5_vel"):
-            vel_msg.theta5_vel = motor_velocities[4] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+        if vel_msg is not None:
+            # ticks/sec -> rpm -> rad/s
+            if hasattr(vel_msg, "theta1_vel"):
+                vel_msg.theta1_vel = motor_velocities[0] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+            if hasattr(vel_msg, "theta2_vel"):
+                vel_msg.theta2_vel = motor_velocities[1] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+            if hasattr(vel_msg, "theta3_vel"):
+                vel_msg.theta3_vel = motor_velocities[2] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+            if hasattr(vel_msg, "theta4_vel"):
+                vel_msg.theta4_vel = motor_velocities[3] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
+            if hasattr(vel_msg, "theta5_vel"):
+                vel_msg.theta5_vel = motor_velocities[4] * VEL_UNIT_RPM / RAD_S_TO_REV_MIN
 
         self.motor_positions_pub.publish(pos_msg)
-        self.motor_velocities_pub.publish(vel_msg)
+        if self.motor_velocities_pub is not None and vel_msg is not None:
+            self.motor_velocities_pub.publish(vel_msg)
 
         # Publish to /servo/actual for plotter
         actual_msg = Float32MultiArray()

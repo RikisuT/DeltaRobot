@@ -3,18 +3,23 @@
 ## Nodes
 
 ### `kinematics`
+
 Provides forward and inverse kinematics as ROS 2 services. Accepts a config YAML for robot geometry (link lengths, joint limits). Also publishes `robot_config` (pose + joint angles) at a configurable rate.
 
 **Services:** `delta_fk`, `delta_ik`, `convert_to_joint_trajectory`, `convert_to_joint_vel_trajectory`
 
 ### `motion_planner`
+
 Top-level control node. Sends joint trajectory commands to both the physical motors and the Gazebo simulation simultaneously.
 
 **Services:** `play_demo_trajectory`, `move_to_point`, `move_to_configuration`, `motion_demo`
 
+Additional trajectory service: `play_custom_trajectory` (batched end-effector trajectory with step timing)
+
 Built-in demos: `circle`, `pringle`, `axes`, `up_down`, `scan`
 
 ### `motor_control_node.py` *(Python)*
+
 Interfaces with the **Waveshare ST3215** serial bus servos via the [`stservo`](https://github.com/iltlo/waveshare_stservo_python) Python SDK (install with `pip install -e repos/waveshare_stservo_python`).
 
 Converts radians ↔ motor ticks, handles position and velocity control via GroupSyncWrite, and publishes joint position/velocity feedback at 25 Hz.
@@ -24,10 +29,75 @@ Converts radians ↔ motor ticks, handles position and velocity control via Grou
 **Service:** `delta_motors/set_joint_limits`
 
 ### `joint_state_bridge.py` *(Python)*
+
 Bridges `/joint_states` (from `joint_state_broadcaster` in simulation) to the motor feedback topics expected by `kinematics`. Only needed in simulation — replaced by `motor_control_node` on hardware.
 
+### `gcode_parser.py` *(Python)*
+
+Executes a subset of G-code by calling `delta_motion_planner/move_to_point` for each motion command.
+
+If available, it uses `delta_motion_planner/play_custom_trajectory` for smoother batched execution.
+
+Supported commands: `G0`, `G1`, `G20`, `G21`, `G28`, `G90`, `G91`, and feed `F`.
+
+### `json_task_sequencer.py` *(Python)*
+
+Executes JSON task lists in sequence using `delta_motion_planner/move_to_point`.
+
+If available, it uses `delta_motion_planner/play_custom_trajectory` for smoother batched execution.
+
+Supported actions: `move`, `wait`, `home`.
+
+Source-compatible actions `tilt`, `spin`, and `suction` are accepted but skipped with warnings because this stack currently has no matching end-effector interfaces.
+
 ### `range_scanner`
+
 3D scanning node. Moves the end-effector through the `scan` trajectory while recording (x, y, z, distance) data from the VL53L1X ToF sensor to map surfaces.
 
 ### `delta_trajectory_generator` *(Deprecated)*
+
 Legacy standalone trajectory generation node. Functionality is now fully covered by `motion_planner`.
+
+## G-code and JSON Usage
+
+Prerequisite: start the core stack (`kinematics` + `motion_planner`) before running parser tools.
+
+Run G-code:
+
+```bash
+ros2 run delta_robot gcode_parser.py \
+  $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/circle_test.gcode
+```
+
+Smoother G-code execution (more interpolation steps):
+
+```bash
+ros2 run delta_robot gcode_parser.py \
+  $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/circle_test.gcode \
+  --ros-args -p motion_rate_hz:=100.0 -p default_units:=meters
+```
+
+Run JSON task sequence:
+
+```bash
+ros2 run delta_robot json_task_sequencer.py \
+  $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/example_task.json
+```
+
+Smoother timed JSON moves:
+
+```bash
+ros2 run delta_robot json_task_sequencer.py \
+  $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/example_task.json \
+  --ros-args -p motion_rate_hz:=100.0 -p json_units:=meters
+```
+
+When `play_custom_trajectory` is available, both tools now queue a single batched trajectory per file/sequence.
+
+Optional launch wrapper:
+
+```bash
+ros2 launch delta_robot gcode_json_tools.launch.py \
+  run_gcode:=true \
+  gcode_file:=$(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/circle_test.gcode
+```

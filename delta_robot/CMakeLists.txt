@@ -68,6 +68,8 @@ install(TARGETS
 install(PROGRAMS
   delta_robot/motor_control_node.py
   delta_robot/joint_state_bridge.py
+  delta_robot/gcode_parser.py
+  delta_robot/json_task_sequencer.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

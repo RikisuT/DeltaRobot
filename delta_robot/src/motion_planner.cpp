@@ -43,6 +43,7 @@ using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
+using PlayCustomTrajectory = deltarobot_interfaces::srv::PlayCustomTrajectory;
 using ConvertToJointTrajectory = deltarobot_interfaces::srv::ConvertToJointTrajectory;
 using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVelTrajectory;
 
@@ -113,6 +114,11 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
                [[maybe_unused]] std::shared_ptr<MotionDemo::Response> response) {
           this->playDemo = request->start;
         });
+
+      this->play_custom_trajectory_server = create_service<PlayCustomTrajectory>(
+        "delta_motion_planner/play_custom_trajectory",
+        std::bind(&DeltaMotionPlanner::playCustomTrajectory, this,
+          std::placeholders::_1, std::placeholders::_2));
 
       const float demoDelay = 32;
       this->demo_timer = this->create_wall_timer(
@@ -245,6 +251,47 @@ void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
   }
   );
   // ---------- END_CITATION [1] ----------
+}
+
+void DeltaMotionPlanner::playCustomTrajectory(
+  const std::shared_ptr<PlayCustomTrajectory::Request> request,
+  std::shared_ptr<PlayCustomTrajectory::Response> response) {
+  if (request->trajectory.empty()) {
+    RCLCPP_ERROR(get_logger(), "play_custom_trajectory received empty trajectory");
+    response->success = false;
+    return;
+  }
+
+  const int requested_step_ms = request->step_ms;
+  const unsigned int step_ms = requested_step_ms > 0
+    ? static_cast<unsigned int>(requested_step_ms)
+    : static_cast<unsigned int>(this->get_parameter("traj_step_ms").as_int());
+
+  auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
+  convert_request->end_effector_trajectory = request->trajectory;
+
+  auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
+  auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
+    convert_request,
+    [this, joint_traj, step_ms](ServiceResponseFuture<ConvertToJointTrajectory> future) {
+      auto convert_response = future.get();
+      *joint_traj = convert_response->joint_trajectory;
+
+      this->cancel_current_traj = true;
+      if (this->traj_thread && this->traj_thread->joinable()) {
+        this->traj_thread->join();
+      }
+      this->cancel_current_traj = false;
+
+      this->traj_thread = std::make_unique<std::thread>([this, joint_traj, step_ms]() {
+        this->publishMotorCommands(*joint_traj, step_ms);
+      });
+      this->traj_thread->detach();
+    }
+  );
+  (void)future_result;
+
+  response->success = true;
 }
 
 void DeltaMotionPlanner::playDemoTrajectory(

@@ -1,0 +1,4 @@
+geometry_msgs/Point[] trajectory
+int32 step_ms
+---
+bool success
