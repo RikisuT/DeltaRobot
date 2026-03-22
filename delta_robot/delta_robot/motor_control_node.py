@@ -2,28 +2,26 @@
 
 import glob
 import math
+import time
 import rclpy
 from rclpy.node import Node
+import serial
 
 from deltarobot_interfaces.msg import DeltaJoints
 from deltarobot_interfaces.msg import DeltaJointVels
 from deltarobot_interfaces.srv import SetJointLimits
 from std_msgs.msg import Float32MultiArray
 
-from scservo_sdk.port_handler import PortHandler
-from scservo_sdk.group_sync_read import GroupSyncRead
-from scservo_sdk.scservo_def import COMM_SUCCESS
-from scservo_sdk.sms_sts import (
-    SMS_STS_PRESENT_POSITION_L,
-    SMS_STS_PRESENT_SPEED_L,
-    sms_sts as SMS_STS,
-)
-
 # ST Servo Constants
 BAUDRATE = 500000
 DEVICE_NAME = "/dev/ttyUSB0"
 MAX_ST_MOVING_SPEED = 7500
 MAX_ST_MOVING_ACC = 254
+SERIAL_TIMEOUT_S = 0.08
+SERIAL_CMD_WAIT_S = 0.12
+
+BIN_SOF = 0x7E
+BIN_SETN = 0x05
 
 # Converting from radians to motor position mapping
 # Motor Position 0-4095 corresponds to 360 degrees (2*pi radians)
@@ -39,6 +37,8 @@ RAD_S_TO_REV_MIN = 60.0 / (2.0 * math.pi)
 BICEP_IDS = [1, 2, 3]
 EE_IDS = [4, 5]
 ALL_MOTOR_IDS = BICEP_IDS + EE_IDS
+
+DEFAULT_STREAM_PERIOD_MS = 20
 
 
 class DeltaMotorControl(Node):
@@ -58,6 +58,21 @@ class DeltaMotorControl(Node):
         self.enable_velocity_feedback = bool(
             self.declare_parameter("enable_velocity_feedback", False).value
         )
+        self.serial_timeout_s = float(
+            self.declare_parameter("serial_timeout_s", SERIAL_TIMEOUT_S).value
+        )
+        self.serial_cmd_wait_s = float(
+            self.declare_parameter("serial_cmd_wait_s", SERIAL_CMD_WAIT_S).value
+        )
+        self.use_binary_bridge = bool(
+            self.declare_parameter("use_binary_bridge", True).value
+        )
+        self.binary_noack_set = bool(
+            self.declare_parameter("binary_noack_set", True).value
+        )
+        self.stream_feedback_period_ms = int(
+            self.declare_parameter("stream_feedback_period_ms", DEFAULT_STREAM_PERIOD_MS).value
+        )
 
         self.bicep_moving_speed = max(0, min(MAX_ST_MOVING_SPEED, self.bicep_moving_speed))
         self.bicep_moving_acc = max(0, min(MAX_ST_MOVING_ACC, self.bicep_moving_acc))
@@ -65,15 +80,18 @@ class DeltaMotorControl(Node):
         self.ee_moving_acc = max(0, min(MAX_ST_MOVING_ACC, self.ee_moving_acc))
         self.max_write_retries = max(1, self.max_write_retries)
         self.read_fail_watchdog_limit = max(1, self.read_fail_watchdog_limit)
+        self.stream_feedback_period_ms = max(10, self.stream_feedback_period_ms)
         self.consecutive_read_failures = 0
 
-        # Initialize SDK handlers after probing serial candidates.
-        self.portHandler = None
-        self.packetHandler = None
-        self.groupSyncRead = None
+        # Serial-bridge I/O state.
+        self.serial_port = None
         self.hardware_available = False
         self.visible_motor_ids = []
         self.missing_motor_ids = list(ALL_MOTOR_IDS)
+        self.bridge_binary_enabled = False
+        self.bin_seq = 1
+        self.latest_motor_positions = {sid: int(UP_POS) for sid in ALL_MOTOR_IDS}
+        self.latest_motor_velocities = {sid: 0 for sid in ALL_MOTOR_IDS}
 
         self._initialize_hardware()
 
@@ -132,13 +150,132 @@ class DeltaMotorControl(Node):
 
         return candidates
 
-    def _ping_servo(self, servo_id):
-        """Check if a servo responds to ping."""
-        try:
-            _, scs_comm_result, _ = self.packetHandler.ping(servo_id)
-            return scs_comm_result == COMM_SUCCESS
-        except Exception:
+    def _read_serial_lines(self, window_s=None, stop_prefixes=()):
+        if not self.serial_port:
+            return []
+        if window_s is None:
+            window_s = self.serial_cmd_wait_s
+        end_t = self.get_clock().now().nanoseconds / 1e9 + window_s
+        out = []
+        while (self.get_clock().now().nanoseconds / 1e9) < end_t:
+            raw = self.serial_port.readline()
+            if not raw:
+                continue
+            line = raw.decode("utf-8", errors="replace").strip()
+            if not line:
+                continue
+            out.append(line)
+            if stop_prefixes and any(line.startswith(p) for p in stop_prefixes):
+                break
+        return out
+
+    def _bridge_request(self, cmd, wait_s=None, stop_prefixes=()):
+        if not self.serial_port:
+            return []
+        self.serial_port.write((cmd.strip() + "\n").encode("ascii", errors="ignore"))
+        return self._read_serial_lines(wait_s, stop_prefixes)
+
+    def _bin_crc_xor(self, cmd, seq, payload):
+        crc = 0
+        crc ^= (cmd & 0xFF)
+        crc ^= (seq & 0xFF)
+        crc ^= (len(payload) & 0xFF)
+        for b in payload:
+            crc ^= b
+        return crc & 0xFF
+
+    def _build_bin_frame(self, cmd, seq, payload):
+        crc = self._bin_crc_xor(cmd, seq, payload)
+        return bytes([BIN_SOF, cmd & 0xFF, seq & 0xFF, len(payload) & 0xFF]) + payload + bytes([crc])
+
+    def _parse_feedback_line(self, line):
+        if not line:
             return False
+        if not (line.startswith("FBP id=") or line.startswith("FBPS id=")):
+            return False
+
+        parts = line.split()
+        sid = None
+        pos = None
+        spd = None
+        for p in parts:
+            if p.startswith("id="):
+                raw = p.split("=", 1)[1]
+                if raw.isdigit():
+                    sid = int(raw)
+            elif p.startswith("pos="):
+                raw = p.split("=", 1)[1]
+                if raw.lstrip("-").isdigit():
+                    pos = int(raw)
+            elif p.startswith("speed="):
+                raw = p.split("=", 1)[1]
+                if raw.lstrip("-").isdigit():
+                    spd = int(raw)
+
+        if sid is None or sid not in ALL_MOTOR_IDS or pos is None:
+            return False
+
+        self.latest_motor_positions[sid] = pos
+        if spd is not None:
+            self.latest_motor_velocities[sid] = spd
+        return True
+
+    def _drain_serial_feedback(self, max_lines=200):
+        if not self.serial_port:
+            return 0
+
+        updates = 0
+        drained = 0
+        while drained < max_lines:
+            waiting = self.serial_port.in_waiting
+            if waiting <= 0:
+                break
+            raw = self.serial_port.readline()
+            if not raw:
+                break
+            line = raw.decode("utf-8", errors="replace").strip()
+            drained += 1
+            if self._parse_feedback_line(line):
+                updates += 1
+
+        return updates
+
+    def _send_setn_binary(self, entries):
+        if not self.serial_port or not entries:
+            return False
+        payload = bytearray()
+        for sid, pos, speed, acc in entries:
+            payload.append(sid & 0xFF)
+            payload.extend((pos & 0xFF, (pos >> 8) & 0xFF))
+            payload.extend((speed & 0xFF, (speed >> 8) & 0xFF))
+            payload.append(acc & 0xFF)
+
+        frame = self._build_bin_frame(BIN_SETN, self.bin_seq, payload)
+        self.serial_port.write(frame)
+        self.bin_seq = (self.bin_seq + 1) & 0xFF
+        return True
+
+    def _parse_list_ids(self, lines):
+        for ln in lines:
+            if ln.startswith("OK ids="):
+                payload = ln.split("=", 1)[1].strip()
+                if not payload:
+                    return []
+                ids = []
+                for tok in payload.split(","):
+                    tok = tok.strip()
+                    if tok.isdigit():
+                        ids.append(int(tok))
+                return ids
+        return []
+
+    def _ping_servo(self, servo_id):
+        lines = self._bridge_request(
+            f"PING {servo_id}",
+            wait_s=0.12,
+            stop_prefixes=("OK ping", "ERR"),
+        )
+        return any(ln.startswith("OK ping") for ln in lines)
 
     def _initialize_hardware(self):
         candidate_ports = self._get_candidate_ports(self.device_name)
@@ -154,45 +291,54 @@ class DeltaMotorControl(Node):
 
         for port_path in candidate_ports:
             try:
-                trial_port = PortHandler(port_path)
-                trial_packet = SMS_STS(trial_port)
-
-                if not trial_port.openPort():
-                    port_errors.append(f"{port_path}: openPort() returned False")
-                    continue
-
-                if not trial_port.setBaudRate(self.baudrate):
-                    port_errors.append(f"{port_path}: failed to set baudrate {self.baudrate}")
-                    trial_port.closePort()
-                    continue
-
-                self.portHandler = trial_port
-                self.packetHandler = trial_packet
+                trial = serial.Serial(
+                    port=port_path,
+                    baudrate=self.baudrate,
+                    timeout=self.serial_timeout_s,
+                )
+                self.serial_port = trial
                 self.device_name = port_path
                 self.get_logger().info(f"Connected on {port_path} @ {self.baudrate}")
+                # Let bridge settle after open/reset.
+                self._bridge_request("HELP", wait_s=0.25)
                 break
-
             except Exception as exc:
                 port_errors.append(f"{port_path}: {exc}")
 
-        if self.portHandler is None or self.packetHandler is None:
+        if self.serial_port is None:
             self.get_logger().warning("Could not open any serial port; running in no-hardware mode")
             for err in port_errors:
                 self.get_logger().warning(f"  - {err}")
             self.hardware_available = False
             return
 
-        self.get_logger().info(f"Scanning servo IDs: {ALL_MOTOR_IDS}")
-        self.visible_motor_ids = []
-        self.missing_motor_ids = []
+        self._bridge_request("STREAM 0", wait_s=0.15, stop_prefixes=("OK stream", "ERR"))
+        self._bridge_request("SCANVERBOSE 0", wait_s=0.15, stop_prefixes=("OK scan_verbose", "ERR"))
+        if self.use_binary_bridge:
+            bin_rsp = self._bridge_request("BIN 1", wait_s=0.15, stop_prefixes=("OK bin=", "ERR"))
+            self.bridge_binary_enabled = any(ln.startswith("OK bin=1") for ln in bin_rsp)
+            if self.bridge_binary_enabled:
+                bfast_rsp = self._bridge_request(
+                    f"BFAST {1 if self.binary_noack_set else 0}",
+                    wait_s=0.15,
+                    stop_prefixes=("OK bfast=", "ERR"),
+                )
+                if not any(ln.startswith("OK bfast=") for ln in bfast_rsp):
+                    self.get_logger().warning("BFAST not acknowledged; continuing with binary mode")
+        else:
+            self.bridge_binary_enabled = False
 
-        for st_id in ALL_MOTOR_IDS:
-            if self._ping_servo(st_id):
-                self.visible_motor_ids.append(st_id)
-                self.get_logger().info(f"Servo ID:{st_id:03d} Found")
-            else:
-                self.missing_motor_ids.append(st_id)
-                self.get_logger().warning(f"Servo ID:{st_id:03d} NOT Found")
+        self._bridge_request("SCAN", wait_s=0.25, stop_prefixes=("OK scan_started", "ERR"))
+        time.sleep(1.0)
+        ids = self._parse_list_ids(
+            self._bridge_request("LIST", wait_s=0.35, stop_prefixes=("OK ids=",))
+        )
+        if not ids:
+            # Fallback to direct ping probing for expected IDs.
+            ids = [sid for sid in ALL_MOTOR_IDS if self._ping_servo(sid)]
+
+        self.visible_motor_ids = sorted([sid for sid in ids if sid in ALL_MOTOR_IDS])
+        self.missing_motor_ids = [sid for sid in ALL_MOTOR_IDS if sid not in self.visible_motor_ids]
 
         self.get_logger().info(
             f"Visible motors ({len(self.visible_motor_ids)}/{len(ALL_MOTOR_IDS)}): {self.visible_motor_ids}"
@@ -202,18 +348,24 @@ class DeltaMotorControl(Node):
 
         if not self.visible_motor_ids:
             self.get_logger().warning("No servos detected; running in no-hardware mode")
-            self.portHandler.closePort()
+            self.serial_port.close()
+            self.serial_port = None
             self.hardware_available = False
             return
 
         for st_id in self.visible_motor_ids:
-            self.packetHandler.write1ByteTxRx(st_id, 40, 1)
+            self._bridge_request(
+                f"TORQUE {st_id} 1", wait_s=0.15, stop_prefixes=("OK torque", "ERR")
+            )
             self.get_logger().info(f"Torque enabled for Motor ID: {st_id}")
 
-        read_len = 11 if self.enable_velocity_feedback else 2
-        self.groupSyncRead = GroupSyncRead(
-            self.packetHandler, SMS_STS_PRESENT_POSITION_L, read_len
+        self._bridge_request("TMODE POS", wait_s=0.15, stop_prefixes=("OK tmode", "ERR"))
+        self._bridge_request(
+            f"STREAM 1 {self.stream_feedback_period_ms}",
+            wait_s=0.2,
+            stop_prefixes=("OK stream", "ERR"),
         )
+
         self.hardware_available = True
 
     def convert_to_radians(self, motor_pos):
@@ -252,38 +404,40 @@ class DeltaMotorControl(Node):
             self.convert_to_motor_position(self._get_joint_value(msg, 5)),
         ]
 
-        # For this setup, speed=0 is intentionally used as the fastest mode.
+        all_ok = True
+        entries = []
         for i, pos in enumerate(motor_positions):
             st_id = i + 1
             if st_id not in self.visible_motor_ids:
                 continue
             st_moving_speed, st_moving_acc = self.speed_acc_for_id(st_id)
-            result = self.packetHandler.SyncWritePosEx(
-                st_id, pos, st_moving_speed, st_moving_acc
-            )
-            if not result:
-                self.get_logger().error(
-                    f"[ID:{st_id:03d}] groupSyncWrite addparam failed"
-                )
+            entries.append((st_id, pos, st_moving_speed, st_moving_acc))
 
-        # Syncwrite goal position
-        st_comm_result = COMM_SUCCESS
-        for _ in range(self.max_write_retries):
-            st_comm_result = self.packetHandler.groupSyncWrite.txPacket()
-            if st_comm_result == COMM_SUCCESS:
-                break
-        if st_comm_result != COMM_SUCCESS:
-            self.get_logger().error(
-                f"SyncWrite failed: {self.packetHandler.getTxRxResult(st_comm_result)}"
-            )
-        else:
+        if self.bridge_binary_enabled and entries:
+            all_ok = self._send_setn_binary(entries)
+            if not all_ok:
+                self.get_logger().error("SETN binary send failed; falling back to text SET")
+
+        if (not self.bridge_binary_enabled) or (not all_ok):
+            all_ok = True
+            for st_id, pos, st_moving_speed, st_moving_acc in entries:
+                lines = self._bridge_request(
+                    f"SET {st_id} {pos} {st_moving_speed} {st_moving_acc}",
+                    wait_s=0.15,
+                    stop_prefixes=("OK set", "ERR"),
+                )
+                if not any(ln.startswith("OK set") for ln in lines):
+                    all_ok = False
+                    self.get_logger().error(
+                        f"[ID:{st_id:03d}] SET failed via serial bridge"
+                    )
+
+        if all_ok:
             # self.get_logger().info(f"SyncWrite sent: {motor_positions}") # Removed for performance at 100Hz
             # Publish to /servo/target for plotter
             target_msg = Float32MultiArray()
             target_msg.data = [float(p) for p in motor_positions]
             self.servo_target_pub.publish(target_msg)
-
-        self.packetHandler.groupSyncWrite.clearParam()
         self.get_logger().debug(f"Motor Positions Set: {motor_positions} [motor ticks]")
 
     def set_joint_vels_callback(self, msg):
@@ -291,37 +445,7 @@ class DeltaMotorControl(Node):
             self.get_logger().debug("Ignoring set_joint_vels: hardware unavailable")
             return
 
-        # NOTE: Using SyncWritePosEx for velocity control as wheel mode (continuous rotation)
-        # is typically not used for Delta robot arms which have strict position limits.
-        # This implementation matches the old dynamixel logic conceptually.
-        motor_vels = [
-            self.convert_to_motor_velocity(self._get_joint_value(msg, 1, velocity=True)),
-            self.convert_to_motor_velocity(self._get_joint_value(msg, 2, velocity=True)),
-            self.convert_to_motor_velocity(self._get_joint_value(msg, 3, velocity=True)),
-            self.convert_to_motor_velocity(self._get_joint_value(msg, 4, velocity=True)),
-            self.convert_to_motor_velocity(self._get_joint_value(msg, 5, velocity=True)),
-        ]
-
-        # For true velocity control we'd need to use WheelMode, but for now we issue speed commands
-        # with a very far position target.
-        # If true wheel mode is needed, self.packetHandler.WriteSpe() can be used per servo.
-        for i, vel in enumerate(motor_vels):
-            st_id = i + 1
-            if st_id not in self.visible_motor_ids:
-                continue
-            # We set wheel mode (speed control) for this servo
-            self.packetHandler.WheelMode(st_id)
-            # Write speed (Note: WriteSpe is not part of groupSyncWrite in the provided python, but we can do consecutive writes)
-            # In ST_Servo speed control, bit 15 determines direction.
-            # Convert signed velocity to magnitude + direction bit
-            target_vel = self._get_joint_value(msg, st_id, velocity=True)
-            speed = vel
-            if target_vel < 0:
-                speed |= 1 << 15
-
-            self.packetHandler.WriteSpec(st_id, speed, 50)
-
-        self.get_logger().debug(f"Motor Velocities Set: {motor_vels} [ticks/s]")
+        self.get_logger().debug("set_joint_vels currently not mapped for serial bridge mode")
 
     def set_joint_limits_callback(self, request, response):
         if not self.hardware_available:
@@ -332,87 +456,52 @@ class DeltaMotorControl(Node):
         motor_min = self.convert_to_motor_position(request.min_rad)
         motor_max = self.convert_to_motor_position(request.max_rad)
 
+        all_ok = True
         for st_id in self.visible_motor_ids:
-            # The python SDK doesn't expose a direct "write 2 bytes to register" for arbitrary registers
-            # easily in the high-level class outside of WritePosEx. We can use write2ByteTxRx from PacketHandler
-            # Min/Max angle limits are registers 9, 10 and 11, 12.
-            # MIN_ANGLE_LIMIT_L = 9
-            # MAX_ANGLE_LIMIT_L = 11
-
-            st_comm_result, st_error = self.packetHandler.write2ByteTxRx(
-                st_id, 9, motor_min
+            lines = self._bridge_request(
+                f"LIMITS {st_id} {motor_min} {motor_max}",
+                wait_s=0.15,
+                stop_prefixes=("OK limits", "ERR"),
             )
-
-            st_comm_result, st_error = self.packetHandler.write2ByteTxRx(
-                st_id, 11, motor_max
-            )
+            if not any(ln.startswith("OK limits") for ln in lines):
+                all_ok = False
 
         self.get_logger().info(
             f"Joint Limits Set: Position [{request.min_rad}, {request.max_rad}] [rad]"
         )
-        response.success = True
+        response.success = all_ok
         return response
 
     def timer_callback(self):
-        if not self.hardware_available or self.groupSyncRead is None:
+        if not self.hardware_available or self.serial_port is None:
             return
 
-        # Add parameter storage for configured servo IDs present position value
-        for st_id in self.visible_motor_ids:
-            st_addparam_result = self.groupSyncRead.addParam(st_id)
-            if not st_addparam_result:
-                self.get_logger().error(
-                    f"[ID:{st_id:03d}] groupSyncRead addparam failed"
-                )
-
-        st_comm_result = self.groupSyncRead.txRxPacket()
-        if st_comm_result != COMM_SUCCESS:
+        updates = self._drain_serial_feedback(max_lines=300)
+        if updates == 0:
             self.consecutive_read_failures += 1
-            self.get_logger().debug(self.packetHandler.getTxRxResult(st_comm_result))
-            if self.consecutive_read_failures >= self.read_fail_watchdog_limit:
-                self.get_logger().warning(
-                    "Read watchdog tripped after %d failures; disabling hardware I/O"
-                    % self.consecutive_read_failures
-                )
-                self.hardware_available = False
-            self.groupSyncRead.clearParam()
-            return
-        self.consecutive_read_failures = 0
+        else:
+            self.consecutive_read_failures = 0
 
-        motor_positions = [0] * len(ALL_MOTOR_IDS)
-        motor_velocities = [0] * len(ALL_MOTOR_IDS)
-
-        for st_id in self.visible_motor_ids:
-            avail_len = 11 if self.enable_velocity_feedback else 2
-            st_data_result, st_error = self.groupSyncRead.isAvailable(
-                st_id, SMS_STS_PRESENT_POSITION_L, avail_len
+        if self.consecutive_read_failures >= self.read_fail_watchdog_limit:
+            self.get_logger().warning(
+                "Read watchdog tripped after %d failures; disabling hardware I/O"
+                % self.consecutive_read_failures
             )
-            if st_data_result:
-                pres_pos = self.groupSyncRead.getData(
-                    st_id, SMS_STS_PRESENT_POSITION_L, 2
-                )
-                spd_val = 0
-                if self.enable_velocity_feedback:
-                    pres_spd = self.groupSyncRead.getData(st_id, SMS_STS_PRESENT_SPEED_L, 2)
-                    # Handling signed speed (15th bit is direction)
-                    spd_val = self.packetHandler.scs_tohost(pres_spd, 15)
+            self.hardware_available = False
+            return
 
-                # Safety check: If position is 0, it usually means a read failure or uninitialized ID
-                # 0 ticks corresponds to -PI which is out of bounds for DeltaRobot kinematics
-                if pres_pos == 0:
-                    self.get_logger().warn(
-                        f"[ID:{st_id:03d}] Reported position 0, ignoring to prevent kinematics crash."
-                    )
-                    continue
+        motor_positions = [int(UP_POS)] * len(ALL_MOTOR_IDS)
+        motor_velocities = [0] * len(ALL_MOTOR_IDS)
+        for st_id in self.visible_motor_ids:
+            pos = self.latest_motor_positions.get(st_id, int(UP_POS))
+            spd = self.latest_motor_velocities.get(st_id, 0)
 
-                motor_positions[st_id - 1] = pres_pos
-                motor_velocities[st_id - 1] = spd_val
-            else:
-                self.get_logger().debug(
-                    f"[ID:{st_id:03d}] groupSyncRead getdata failed"
-                )
+            # Safety guard retained from prior implementation.
+            if pos == 0:
+                continue
 
-        self.groupSyncRead.clearParam()
+            motor_positions[st_id - 1] = pos
+            motor_velocities[st_id - 1] = spd
 
         # Convert and Publish
         pos_msg = DeltaJoints()
@@ -466,8 +555,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        if hasattr(node, "portHandler"):
-            node.portHandler.closePort()
+        if hasattr(node, "serial_port") and node.serial_port is not None:
+            node.serial_port.close()
         node.destroy_node()
         rclpy.shutdown()
 

@@ -15,7 +15,6 @@
   <!-- Delta Robot Packages -->
   <depend>deltarobot_interfaces</depend>
   <depend>delta_robot_sensors</depend>
-  <depend>scservo_sdk</depend>
 
   <!-- ROS Dependencies -->
   <depend>rclcpp</depend>

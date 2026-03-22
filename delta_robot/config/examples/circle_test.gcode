@@ -1,7 +1,7 @@
 ; Circle Test (Radius 0.05m)
 ; Source-compatible sample for gcode_parser.py
 
-G1 X0.0 Y0.0 Z-0.22 F300
+G1 X0.0 Y0.0 Z-0.22 F500
 G1 X0.05 Y0.00 Z-0.22
 G1 X0.05 Y0.00 Z-0.25
 

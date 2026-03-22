@@ -6,3 +6,4 @@ SCSTServoLibrary
 STServo_Python
 SCServo_Linux
 esp32/
+esp32_dev/

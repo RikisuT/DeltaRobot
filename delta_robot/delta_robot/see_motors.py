@@ -179,7 +179,7 @@ def main():
             lines[mid][1].set_data(t_snap, list(plot_actuals[mid]))
 
         for ax in axes:
-            ax.set_xlim(max(0, t_now - (WINDOW_SIZE * SAMPLE_INTERVAL)), t_now + 0.5)
+            ax.set_xlim(max(0, t_now - 2.0), t_now + 0.5)
 
         # --- Compute response metrics ---
         stats_lines = [
