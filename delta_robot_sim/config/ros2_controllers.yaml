@@ -11,13 +11,13 @@ controller_manager:
 joint_trajectory_controller:
   ros__parameters:
     joints:
-      - jbf1
-      - jbf2
-      - jbf3
-      - Bevelj1
-      - Bevelj2
-      - Tj1
-      - BeveljEE
+      - motor_joint_1
+      - motor_joint_2
+      - motor_joint_3
+      - differential_pinion_joint_1
+      - differential_pinion_joint_2
+      - differential_T_joint
+      - differential_EE_joint
 
     command_interfaces:
       - position
@@ -27,6 +27,6 @@ joint_trajectory_controller:
       - velocity
 
     gains:
-      jbf1: {p: 100.0, i: 1.0, d: 10.0}
-      jbf2: {p: 100.0, i: 1.0, d: 10.0}
-      jbf3: {p: 100.0, i: 1.0, d: 10.0}
+      motor_joint_1: {p: 100.0, i: 1.0, d: 10.0}
+      motor_joint_2: {p: 100.0, i: 1.0, d: 10.0}
+      motor_joint_3: {p: 100.0, i: 1.0, d: 10.0}

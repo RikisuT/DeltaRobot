@@ -6,14 +6,26 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
-
-# Add these imports at the top
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
+import xacro
+import yaml
 
+
+def load_joint_name_config():
+    config_path = os.path.join(
+        get_package_share_directory("delta_robot"),
+        "config",
+        "joint_names.yaml",
+    )
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        return yaml.safe_load(config_file) or {}
 
 def generate_launch_description():
+    joint_name_config = load_joint_name_config()
+    feedback_joint_names = joint_name_config.get("feedback_joint_names", [])
+
     # --- 1. Setup Paths ---
     delta_robot_description_path = get_package_share_directory(
         "delta_robot_description"
@@ -40,9 +52,11 @@ def generate_launch_description():
     )
 
     # Load SDF
-    sdf_file = os.path.join(delta_robot_description_path, "models", "model.sdf")
-    with open(sdf_file, "r") as infp:
-        robot_desc = infp.read()
+    xacro_file = os.path.join(delta_robot_description_path, "models", "model_high.sdf.xacro")
+
+    # Process the XACRO file right now and convert it into a standard Python string
+    doc = xacro.process_file(xacro_file)
+    robot_desc = doc.toxml()
 
     # Load Box SDF
     box_sdf_file = os.path.join(delta_robot_description_path, "models", "box.sdf")
@@ -66,7 +80,7 @@ def generate_launch_description():
             os.path.join(pkg_ros_gz_sim, "launch", "gz_sim.launch.py")
         ),
         launch_arguments={
-            "gz_args": f"-r -v 1 --gui-config {gz_gui_config} {world_file}"
+            "gz_args": f"-r -v 1 --gui-config {gz_gui_config} {world_file} --physics-engine gz-physics-bullet-featherstone-plugin"
         }.items(),
     )
 
@@ -169,6 +183,7 @@ def generate_launch_description():
         executable="joint_state_bridge.py",
         name="joint_state_bridge",
         output="screen",
+        parameters=[{"joint_names": feedback_joint_names}],
         condition=IfCondition(LaunchConfiguration("use_sim_feedback")),  # ← add this
     )
 

@@ -5,7 +5,7 @@ from sensor_msgs.msg import JointState
 from deltarobot_interfaces.msg import DeltaJoints, DeltaJointVels
 import math
 
-JOINT_NAMES = ["jbf1", "jbf2", "jbf3"]
+DEFAULT_JOINT_NAMES = ["motor_joint_1", "motor_joint_2", "motor_joint_3"]
 
 
 def correct_joint_angle(raw: float) -> float:
@@ -21,9 +21,17 @@ def correct_joint_angle(raw: float) -> float:
 
 
 class JointStateBridge(Node):
+    def __init__(self):
+        super().__init__('joint_state_bridge')
+        self.declare_parameter('joint_names', DEFAULT_JOINT_NAMES)
+        self.joint_names = list(self.get_parameter('joint_names').value)
+        self.pos_pub = self.create_publisher(DeltaJoints, 'delta_motors/motor_position_feedback', 10)
+        self.vel_pub = self.create_publisher(DeltaJointVels, 'delta_motors/motor_velocity_feedback', 10)
+        self.create_subscription(JointState, '/joint_states', self.cb, 10)
+
     def cb(self, msg: JointState):
         try:
-            indices = [msg.name.index(name) for name in JOINT_NAMES]
+            indices = [msg.name.index(name) for name in self.joint_names]
         except ValueError:
             return
 

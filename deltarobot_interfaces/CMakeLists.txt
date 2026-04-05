@@ -46,6 +46,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/MoveToConfiguration.srv"
   "srv/MotionDemo.srv"
   "srv/PlayCustomTrajectory.srv"
+  "srv/SetMotionMode.srv"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs
 )
 

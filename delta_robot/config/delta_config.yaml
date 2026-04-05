@@ -1,11 +1,11 @@
 delta_kinematics:
   ros__parameters:
-    base_triangle_side_length: 360.26656 # [mm] (r_base=104 mm, SB = r_base * 2 * sqrt(3))
-    end_effector_side_length: 138.56407 # [mm] (r_ee=40 mm, SP = r_ee * 2 * sqrt(3))
-    active_link_length: 105.0 # [mm]
-    passive_link_length: 218.75 # [mm] (Matches observed SDF/Simulation length)
+    base_triangle_side_length: 346.41016 # [mm] (r_base=100 mm, SB = r_base * 2 * sqrt(3))
+    end_effector_side_length: 112.58330 # [mm] (r_ee=32.5 mm, SP = r_ee * 2 * sqrt(3))
+    active_link_length: 100.0 # [mm]
+    passive_link_length: 200.0 # [mm]
     passive_link_width: 42.84670 # [mm]
     joint_min: -0.174532925199 # [rad] (-10 deg)
     joint_max: 1.57079632679 # [rad] (90 deg)
     max_joint_velocity: 11.1 # [rad/s] (106 RPM as requested)
-    robot_config_freq: 50.0 # [Hz]
+    robot_config_freq: 50.0 # [Hz]  

@@ -13,9 +13,10 @@
 ///
 /// SERVICES:
 ///   ~/delta_motion_planner/play_demo_trajectory (deltarobot_interfaces::srv::PlayDemoTrajectory): Service to play predefined demonstration trajectories (up_down, pringle, axes, circle, scan)
-///   ~/delta_motion_planner/move_to_point (deltarobot_interfaces::srv::MoveToPoint): Service to move the end effector to a specific 3D point
+///   ~/delta_motion_planner/move_to_point (deltarobot_interfaces::srv::MoveToPoint): Service to move the end effector to a specific 3D point (only in TASK_MODE)
 ///   ~/delta_motion_planner/move_to_configuration (deltarobot_interfaces::srv::MoveToConfiguration): Service to move the robot to a specific joint configuration
 ///   ~/delta_motion_planner/motion_demo (deltarobot_interfaces::srv::MotionDemo): Service to start/stop the automatic demo mode
+///   ~/delta_motion_planner/set_motion_mode (deltarobot_interfaces::srv::SetMotionMode): Service to switch between TASK_MODE and LIVE_TEACH_MODE
 ///
 /// CLIENTS:
 ///   ~/delta_kinematics/delta_ik (deltarobot_interfaces::srv::DeltaIK): Client to compute inverse kinematics (joint angles from end effector position)
@@ -33,7 +34,11 @@
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include <math.h>
+#include <cstdlib>
 #include <fstream>
+#include <iterator>
+#include <sstream>
+#include <ctime>
 
 template<typename T>
 using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
@@ -61,6 +66,14 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   // Declare and get parameters
   this->declare_parameter("traj_step_ms", 10);
   this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
+  this->declare_parameter("live_controller_ms", 20);
+  this->param_live_controller_ms = this->get_parameter("live_controller_ms").as_int();
+  this->declare_parameter<std::string>("live_target_topic", "delta_motion_planner/live_target");
+  this->live_target_topic = this->get_parameter("live_target_topic").as_string();
+  this->declare_parameter<std::vector<std::string>>(
+    "controller_joint_names",
+    {"motor_joint_1", "motor_joint_2", "motor_joint_3", "differential_pinion_joint_1", "differential_pinion_joint_2", "differential_T_joint", "differential_EE_joint"});
+  this->controller_joint_names = this->get_parameter("controller_joint_names").as_string_array();
 
   // Create publishers
   const auto QOS_RKL10V = rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile();
@@ -69,6 +82,13 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   this->trajectory_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
     "/joint_trajectory_controller/joint_trajectory",
     rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile());
+
+  this->live_target_sub = this->create_subscription<Point>(
+    this->live_target_topic,
+    rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
+    [this](const Point::SharedPtr msg) {
+      this->liveTargetCallback(msg);
+    });
 
   // Defer service server + timer creation until kinematics services are available
   this->init_timer = this->create_wall_timer(
@@ -96,23 +116,30 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         "delta_motion_planner/move_to_point",
         [this](const std::shared_ptr<MoveToPoint::Request> request,
                std::shared_ptr<MoveToPoint::Response> response) {
-          this->moveToPoint(request->target);
-          response->success = true;
+          response->success = this->moveToPoint(request->target, true);
         });
 
       this->move_to_configuration_server = create_service<MoveToConfiguration>(
         "delta_motion_planner/move_to_configuration",
         [this](const std::shared_ptr<MoveToConfiguration::Request> request,
                std::shared_ptr<MoveToConfiguration::Response> response) {
-          this->moveToConfiguration(request->target_joint_angles);
-          response->success = true;
+          response->success = this->moveToConfiguration(request->target_joint_angles, true);
         });
 
       this->motion_demo_server = create_service<MotionDemo>(
         "delta_motion_planner/motion_demo",
         [this](const std::shared_ptr<MotionDemo::Request> request,
                [[maybe_unused]] std::shared_ptr<MotionDemo::Response> response) {
+          std::lock_guard<std::mutex> lock(this->mode_mutex);
+          if (this->current_mode != TASK_MODE) {
+            RCLCPP_WARN(get_logger(), "Demo mode is only available in TASK_MODE");
+            this->playDemo = false;
+            return;
+          }
           this->playDemo = request->start;
+          if (this->playDemo) {
+            this->demo_sequence_index = 0;
+          }
         });
 
       this->play_custom_trajectory_server = create_service<PlayCustomTrajectory>(
@@ -120,19 +147,61 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         std::bind(&DeltaMotionPlanner::playCustomTrajectory, this,
           std::placeholders::_1, std::placeholders::_2));
 
+      this->set_motion_mode_server = create_service<SetMotionMode>(
+        "delta_motion_planner/set_motion_mode",
+        std::bind(&DeltaMotionPlanner::setMotionMode, this,
+          std::placeholders::_1, std::placeholders::_2));
+
+      this->initialized = true;
+
+      // Live motion controller: runs at fixed rate (~50-100 Hz) for smooth real-time control
+      // Reads latest target from buffer and executes immediately without service latency
+      this->live_controller_timer = this->create_wall_timer(
+        std::chrono::milliseconds(this->param_live_controller_ms),
+        [this]() -> void {
+          this->liveMotionController();
+        });
+
       const float demoDelay = 32;
       this->demo_timer = this->create_wall_timer(
         std::chrono::duration<float>(demoDelay),
         [this]() -> void {
-          if (this->playDemo) {
-            RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory");
-            this->playTrajectory(this->pringleTrajectory());
-            this->playTrajectory(this->circleTrajectory());
-            this->playTrajectory(this->axesTrajectory());
-            this->playTrajectory(this->randomSampleTrajectory(20));
+          bool task_mode = false;
+          {
+            std::lock_guard<std::mutex> lock(this->mode_mutex);
+            task_mode = (this->current_mode == TASK_MODE);
+          }
+          if (this->playDemo && task_mode && !this->motion_active.load()) {
+            switch (this->demo_sequence_index % 4) {
+              case 0:
+                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: pringle");
+                this->playTrajectory(this->pringleTrajectory());
+                break;
+              case 1:
+                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: circle");
+                this->playTrajectory(this->circleTrajectory());
+                break;
+              case 2:
+                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: axes");
+                this->playTrajectory(this->axesTrajectory());
+                break;
+              case 3:
+              default:
+                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: random sample");
+                this->playTrajectory(this->randomSampleTrajectory(20));
+                break;
+            }
+            this->demo_sequence_index++;
           }
         });
     });
+}
+
+DeltaMotionPlanner::~DeltaMotionPlanner() {
+  this->cancel_current_traj = true;
+  if (this->traj_thread && this->traj_thread->joinable()) {
+    this->traj_thread->join();
+  }
 }
 
 void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms) {
@@ -140,7 +209,7 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
   // The joint_trajectory_controller rejects single-point messages whose timestamp has already passed
   trajectory_msgs::msg::JointTrajectory traj_msg;
   traj_msg.header.stamp = rclcpp::Time(0);  // 0 = "execute immediately" for joint_trajectory_controller
-  traj_msg.joint_names = {"jbf1", "jbf2", "jbf3", "Bevelj1", "Bevelj2", "Tj1", "BeveljEE"};
+  traj_msg.joint_names = this->controller_joint_names;
 
   const unsigned int step_ms = (delay_ms > 0) ? delay_ms : static_cast<unsigned int>(this->param_traj_step_ms);
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
@@ -176,7 +245,36 @@ void DeltaMotionPlanner::publishMotorVelocityCommands(const std::vector<DeltaJoi
   }
 }
 
-void DeltaMotionPlanner::moveToPoint(const Point& point) {
+bool DeltaMotionPlanner::tryAcquireMotionSlot(const char* action_name) {
+  bool expected = false;
+  if (!this->motion_active.compare_exchange_strong(expected, true)) {
+    RCLCPP_WARN(get_logger(), "%s rejected: another motion is already active", action_name);
+    return false;
+  }
+  return true;
+}
+
+void DeltaMotionPlanner::releaseMotionSlot() {
+  this->motion_active = false;
+}
+
+bool DeltaMotionPlanner::moveToPoint(const Point& point, bool require_task_mode) {
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (require_task_mode && this->current_mode != TASK_MODE) {
+      RCLCPP_WARN(get_logger(), "move_to_point rejected: not in TASK_MODE");
+      return false;
+    }
+    if (!require_task_mode && this->current_mode != LIVE_TEACH_MODE) {
+      RCLCPP_WARN(get_logger(), "live target rejected: not in LIVE_TEACH_MODE");
+      return false;
+    }
+  }
+
+  if (!this->tryAcquireMotionSlot(require_task_mode ? "move_to_point" : "live target")) {
+    return false;
+  }
+
   // Perform IK to get the joint angles and to ensure if the point is reachable
   auto ik_request = std::make_shared<DeltaIK::Request>();
   ik_request->solution = point;
@@ -192,11 +290,48 @@ void DeltaMotionPlanner::moveToPoint(const Point& point) {
     } else {
       RCLCPP_ERROR(get_logger(), "IK solution not found for the given end effector point");
     }
+    this->releaseMotionSlot();
   }
   );
+
+  (void)future_result;
+  return true;
 }
 
-void DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints) {
+void DeltaMotionPlanner::liveTargetCallback(const Point::SharedPtr msg) {
+  if (!this->initialized) {
+    return;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->current_mode != LIVE_TEACH_MODE) {
+      return;
+    }
+  }
+
+  // Store the latest target in the buffer (overwrite semantics)
+  // The fixed-rate live motion controller will read this and execute it
+  {
+    std::lock_guard<std::mutex> lock(this->live_target_mutex);
+    this->live_target_buffer = *msg;
+    this->live_target_updated = true;
+  }
+}
+
+bool DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints, bool require_task_mode) {
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (require_task_mode && this->current_mode != TASK_MODE) {
+      RCLCPP_WARN(get_logger(), "move_to_configuration rejected: not in TASK_MODE");
+      return false;
+    }
+  }
+
+  if (!this->tryAcquireMotionSlot("move_to_configuration")) {
+    return false;
+  }
+
   // Before publishing joint angles, ensure the request is valid using FK
   auto fk_request = std::make_shared<DeltaFK::Request>();
   fk_request->joint_angles = joints;
@@ -212,8 +347,12 @@ void DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints) {
     } else {
       RCLCPP_ERROR(get_logger(), "FK solution not found for the given joint angles");
     }
+    this->releaseMotionSlot();
   }
   );
+
+  (void)future_result;
+  return true;
 }
 
 void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
@@ -221,7 +360,19 @@ void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
   (void)points;
 }
 
-void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
+bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->current_mode != TASK_MODE) {
+      RCLCPP_WARN(get_logger(), "Trajectory playback rejected: not in TASK_MODE");
+      return false;
+    }
+  }
+
+  if (!this->tryAcquireMotionSlot("trajectory playback")) {
+    return false;
+  }
+
   // Create a joint trajectory using the convert_to_joint_trajectory service
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
   convert_request->end_effector_trajectory = trajectory;
@@ -232,6 +383,11 @@ void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
     convert_request,
     [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
     auto response = future.get();
+    if (response->joint_trajectory.empty()) {
+      RCLCPP_ERROR(get_logger(), "Trajectory conversion failed");
+      this->releaseMotionSlot();
+      return;
+    }
     *joint_traj = response->joint_trajectory;
 
     // Cancel existing trajectory if any
@@ -246,11 +402,14 @@ void DeltaMotionPlanner::playTrajectory(const std::vector<Point> trajectory) {
       // Reload parameter in case it changed
       this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
       this->publishMotorCommands(*joint_traj, this->param_traj_step_ms);
+      this->releaseMotionSlot();
     });
-    this->traj_thread->detach(); // Allow it to run independently
   }
   );
   // ---------- END_CITATION [1] ----------
+
+  (void)future_result;
+  return true;
 }
 
 void DeltaMotionPlanner::playCustomTrajectory(
@@ -267,6 +426,20 @@ void DeltaMotionPlanner::playCustomTrajectory(
     ? static_cast<unsigned int>(requested_step_ms)
     : static_cast<unsigned int>(this->get_parameter("traj_step_ms").as_int());
 
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->current_mode != TASK_MODE) {
+      RCLCPP_WARN(get_logger(), "Custom trajectory rejected: not in TASK_MODE");
+      response->success = false;
+      return;
+    }
+  }
+
+  if (!this->tryAcquireMotionSlot("custom trajectory")) {
+    response->success = false;
+    return;
+  }
+
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
   convert_request->end_effector_trajectory = request->trajectory;
 
@@ -275,6 +448,11 @@ void DeltaMotionPlanner::playCustomTrajectory(
     convert_request,
     [this, joint_traj, step_ms](ServiceResponseFuture<ConvertToJointTrajectory> future) {
       auto convert_response = future.get();
+      if (convert_response->joint_trajectory.empty()) {
+        RCLCPP_ERROR(get_logger(), "Custom trajectory conversion failed");
+        this->releaseMotionSlot();
+        return;
+      }
       *joint_traj = convert_response->joint_trajectory;
 
       this->cancel_current_traj = true;
@@ -285,8 +463,8 @@ void DeltaMotionPlanner::playCustomTrajectory(
 
       this->traj_thread = std::make_unique<std::thread>([this, joint_traj, step_ms]() {
         this->publishMotorCommands(*joint_traj, step_ms);
+        this->releaseMotionSlot();
       });
-      this->traj_thread->detach();
     }
   );
   (void)future_result;
@@ -321,10 +499,12 @@ void DeltaMotionPlanner::playDemoTrajectory(
   }
   RCLCPP_INFO(get_logger(), "Playing demo trajectory: %s", type.c_str());
 
-  this->playTrajectory(trajectory);
+  response->success = this->playTrajectory(trajectory);
 
   // Signal success
-  response->success = true;
+  if (!response->success) {
+    RCLCPP_WARN(get_logger(), "Demo trajectory was rejected");
+  }
 }
 
 std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
@@ -539,6 +719,82 @@ std::vector<Point> DeltaMotionPlanner::readCSV(const std::string& fileName) {
   }
   file.close();
   return trajectory;
+}
+
+void DeltaMotionPlanner::setMotionMode(
+    const std::shared_ptr<SetMotionMode::Request> request,
+    std::shared_ptr<SetMotionMode::Response> response) {
+  
+  // Validate mode value
+  if (request->mode > static_cast<uint8_t>(LIVE_TEACH_MODE)) {
+    response->success = false;
+    response->message = "Invalid mode: must be 0 (TASK_MODE) or 1 (LIVE_TEACH_MODE)";
+    RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
+    return;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->motion_active.load()) {
+      response->success = false;
+      response->message = "Cannot switch modes while a motion is active";
+      RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
+      return;
+    }
+
+    OperatingMode new_mode = static_cast<OperatingMode>(request->mode);
+    
+    // If switching from LIVE_TEACH to TASK, mark the buffer as not updated
+    if (this->current_mode == LIVE_TEACH_MODE && new_mode == TASK_MODE) {
+      this->live_target_updated = false;
+    }
+
+    if (new_mode == LIVE_TEACH_MODE) {
+      this->playDemo = false;
+    }
+    
+    this->current_mode = new_mode;
+    
+    const char* mode_name = (new_mode == TASK_MODE) ? "TASK_MODE" : "LIVE_TEACH_MODE";
+    RCLCPP_INFO(get_logger(), "Motion mode switched to: %s", mode_name);
+  }
+
+  response->success = true;
+  response->message = (request->mode == 0) ? "Switched to TASK_MODE" : "Switched to LIVE_TEACH_MODE";
+}
+
+void DeltaMotionPlanner::liveMotionController() {
+  // Fixed-rate controller that processes live targets from the buffer
+  // Only active when in LIVE_TEACH_MODE
+  
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->current_mode != LIVE_TEACH_MODE) {
+      return;  // Only operate in LIVE_TEACH_MODE
+    }
+  }
+
+  // Check if there's a new target to process
+  bool has_target = false;
+  Point target;
+  {
+    std::lock_guard<std::mutex> lock(this->live_target_mutex);
+    if (this->live_target_updated) {
+      has_target = true;
+      target = this->live_target_buffer;
+      this->live_target_updated = false;  // Mark as processed
+    }
+  }
+
+  // If a new target was available, execute the motion immediately
+  if (has_target) {
+    // Call the internal motion path directly without waiting for the service callback.
+    // This provides low-latency real-time motion for live teach mode.
+    if (this->moveToPoint(target, false)) {
+      std::lock_guard<std::mutex> lock(this->live_target_mutex);
+      this->live_target_updated = false;
+    }
+  }
 }
 
 int main(int argc, char* argv[]) {

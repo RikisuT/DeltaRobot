@@ -1,0 +1,13 @@
+controller_joint_names:
+  - motor_joint_1
+  - motor_joint_2
+  - motor_joint_3
+  - differential_pinion_joint_1
+  - differential_pinion_joint_2
+  - differential_T_joint
+  - differential_EE_joint
+
+feedback_joint_names:
+  - motor_joint_1
+  - motor_joint_2
+  - motor_joint_3

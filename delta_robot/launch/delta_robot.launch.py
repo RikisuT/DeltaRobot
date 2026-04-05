@@ -1,10 +1,25 @@
+import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from launch.substitutions import PathJoinSubstitution
+import yaml
+
+
+def load_joint_name_config():
+    config_path = os.path.join(
+        get_package_share_directory("delta_robot"),
+        "config",
+        "joint_names.yaml",
+    )
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        return yaml.safe_load(config_file) or {}
 
 
 def generate_launch_description():
+    joint_name_config = load_joint_name_config()
+    controller_joint_names = joint_name_config.get("controller_joint_names", [])
+
     return LaunchDescription(
         [
             Node(
@@ -27,6 +42,7 @@ def generate_launch_description():
                 executable="motion_planner",
                 name="motion_planner",
                 output="screen",
+                parameters=[{"controller_joint_names": controller_joint_names}],
             ),
             Node(
                 package="delta_robot",

@@ -37,6 +37,7 @@ pip install -e repos/waveshare_stservo_python
 | Package | Description |
 |---|---|
 | `delta_robot` | Core nodes: kinematics, motion planner, motor control, 3D scanner |
+| `delta_robot_gui` | PyQt control center for Cartesian targets, G-code, and JSON tasks |
 | `delta_robot_sim` | Gazebo simulation with `ros2_control` integration |
 | `delta_robot_description` | SDF robot model and meshes |
 | `deltarobot_interfaces` | Custom ROS 2 messages and services |
@@ -80,12 +81,15 @@ ros2 run delta_robot kinematics --ros-args \
 
 # Terminal 3 — Motion planner
 ros2 run delta_robot motion_planner
+
+# Terminal 4 — GUI controller (Cartesian / G-code / JSON)
+ros2 launch delta_robot_gui delta_robot_gui.launch.py
 ```
 
 Run a demo trajectory:
 
 ```bash
-# Terminal 4 — Trigger a demo
+# Terminal 5 — Trigger a demo
 ros2 service call /delta_motion_planner/play_demo_trajectory \
   deltarobot_interfaces/srv/PlayDemoTrajectory '{type: {data: circle}}'
 ```

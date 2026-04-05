@@ -1,0 +1,6 @@
+uint8 mode
+# 0 = TASK_MODE (service-based discrete commands, default)
+# 1 = LIVE_TEACH_MODE (topic-based real-time control)
+---
+bool success
+string message
