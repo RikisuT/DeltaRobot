@@ -12,7 +12,7 @@ import rclpy
 from geometry_msgs.msg import Point
 from rclpy.node import Node
 
-from deltarobot_interfaces.srv import MoveToPoint, PlayCustomTrajectory
+from deltarobot_interfaces.srv import MoveToPoint, MoveToPose, PlayCustomTrajectory
 
 
 class JsonTaskSequencer(Node):
@@ -22,6 +22,7 @@ class JsonTaskSequencer(Node):
         super().__init__("json_task_sequencer")
 
         self.declare_parameter("move_to_point_service", "delta_motion_planner/move_to_point")
+        self.declare_parameter("move_to_pose_service", "delta_motion_planner/move_to_pose")
         self.declare_parameter("play_custom_trajectory_service", "delta_motion_planner/play_custom_trajectory")
         self.declare_parameter("json_units", "meters")
         self.declare_parameter("default_duration_s", 1.0)
@@ -32,6 +33,9 @@ class JsonTaskSequencer(Node):
 
         self.move_to_point_service = (
             self.get_parameter("move_to_point_service").get_parameter_value().string_value
+        )
+        self.move_to_pose_service = (
+            self.get_parameter("move_to_pose_service").get_parameter_value().string_value
         )
         self.play_custom_trajectory_service = (
             self.get_parameter("play_custom_trajectory_service").get_parameter_value().string_value
@@ -54,8 +58,11 @@ class JsonTaskSequencer(Node):
 
         self.task_file = Path(task_file).expanduser().resolve()
         self.current_pos = dict(self.home)
+        self.current_tilt = 0.0
+        self.current_spin = 0.0
 
         self.move_to_point_client = self.create_client(MoveToPoint, self.move_to_point_service)
+        self.move_to_pose_client = self.create_client(MoveToPose, self.move_to_pose_service)
         self.play_custom_trajectory_client = self.create_client(
             PlayCustomTrajectory, self.play_custom_trajectory_service
         )
@@ -69,6 +76,11 @@ class JsonTaskSequencer(Node):
         if not self.move_to_point_client.wait_for_service(timeout_sec=10.0):
             self.get_logger().error(
                 f"Service not available: {self.move_to_point_service}"
+            )
+            return 1
+        if not self.move_to_pose_client.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error(
+                f"Service not available: {self.move_to_pose_service}"
             )
             return 1
 
@@ -92,8 +104,12 @@ class JsonTaskSequencer(Node):
             f"Loaded {len(tasks)} task(s) from {self.task_file} with units={self.json_units}"
         )
 
-        if self.custom_trajectory_available:
+        if self.custom_trajectory_available and not self._tasks_require_orientation(tasks):
             return self._run_batched_tasks(tasks)
+        if self.custom_trajectory_available:
+            self.get_logger().info(
+                "Detected tilt/spin actions. Switching to point-wise pose mode to preserve orientation."
+            )
 
         for idx, task in enumerate(tasks, start=1):
             if not rclpy.ok():
@@ -242,10 +258,12 @@ class JsonTaskSequencer(Node):
             return self._do_wait(task)
         if action == "home":
             return self._do_home(task, idx)
-        if action in {"tilt", "spin", "suction"}:
-            self.get_logger().warn(
-                f"[{idx}] action '{action}' not wired in this stack, skipping"
-            )
+        if action == "tilt":
+            return self._do_tilt(task, idx)
+        if action == "spin":
+            return self._do_spin(task, idx)
+        if action == "suction":
+            self.get_logger().warn(f"[{idx}] action 'suction' not wired in this stack, skipping")
             duration = float(task.get("duration", 0.0) or 0.0)
             if duration > 0.0:
                 time.sleep(duration)
@@ -258,13 +276,61 @@ class JsonTaskSequencer(Node):
         x_mm = self._to_mm(task.get("x", self.current_pos["x"]))
         y_mm = self._to_mm(task.get("y", self.current_pos["y"]))
         z_mm = self._to_mm(task.get("z", self.current_pos["z"]))
+        tilt_rad = self._read_optional_angle_rad(task, "tilt", "a")
+        spin_rad = self._read_optional_angle_rad(task, "spin", "c")
+        use_orientation = tilt_rad is not None or spin_rad is not None
+        target_tilt = self.current_tilt if tilt_rad is None else tilt_rad
+        target_spin = self.current_spin if spin_rad is None else spin_rad
         duration = max(0.0, float(task.get("duration", self.default_duration_s)))
-        return self._move_interpolated(x_mm, y_mm, z_mm, duration, idx)
+        return self._move_interpolated(
+            x_mm,
+            y_mm,
+            z_mm,
+            duration,
+            idx,
+            target_tilt=target_tilt,
+            target_spin=target_spin,
+            use_orientation=use_orientation,
+        )
 
     def _do_home(self, task: Dict[str, Any], idx: int) -> bool:
         duration = max(0.0, float(task.get("duration", self.default_duration_s)))
         return self._move_interpolated(
             self.home["x"], self.home["y"], self.home["z"], duration, idx
+        )
+
+    def _do_tilt(self, task: Dict[str, Any], idx: int) -> bool:
+        target_tilt = self._read_optional_angle_rad(task, "value", "tilt", "a")
+        if target_tilt is None:
+            self.get_logger().warn(f"[{idx}] tilt action missing value, skipping")
+            return True
+        duration = max(0.0, float(task.get("duration", self.default_duration_s)))
+        return self._move_interpolated(
+            self.current_pos["x"],
+            self.current_pos["y"],
+            self.current_pos["z"],
+            duration,
+            idx,
+            target_tilt=target_tilt,
+            target_spin=self.current_spin,
+            use_orientation=True,
+        )
+
+    def _do_spin(self, task: Dict[str, Any], idx: int) -> bool:
+        target_spin = self._read_optional_angle_rad(task, "value", "spin", "c")
+        if target_spin is None:
+            self.get_logger().warn(f"[{idx}] spin action missing value, skipping")
+            return True
+        duration = max(0.0, float(task.get("duration", self.default_duration_s)))
+        return self._move_interpolated(
+            self.current_pos["x"],
+            self.current_pos["y"],
+            self.current_pos["z"],
+            duration,
+            idx,
+            target_tilt=self.current_tilt,
+            target_spin=target_spin,
+            use_orientation=True,
         )
 
     def _do_wait(self, task: Dict[str, Any]) -> bool:
@@ -273,20 +339,35 @@ class JsonTaskSequencer(Node):
         return True
 
     def _move_interpolated(
-        self, x_mm: float, y_mm: float, z_mm: float, duration: float, idx: int
+        self,
+        x_mm: float,
+        y_mm: float,
+        z_mm: float,
+        duration: float,
+        idx: int,
+        target_tilt: float | None = None,
+        target_spin: float | None = None,
+        use_orientation: bool = False,
     ) -> bool:
         x0 = self.current_pos["x"]
         y0 = self.current_pos["y"]
         z0 = self.current_pos["z"]
+        tilt0 = self.current_tilt
+        spin0 = self.current_spin
+        tilt1 = tilt0 if target_tilt is None else target_tilt
+        spin1 = spin0 if target_spin is None else target_spin
 
         dx = x_mm - x0
         dy = y_mm - y0
         dz = z_mm - z0
 
         if duration <= 0.0:
-            if not self._call_move_service(x_mm, y_mm, z_mm, idx):
+            if not self._call_move_pose_service(x_mm, y_mm, z_mm, tilt1, spin1, use_orientation, idx):
                 return False
             self.current_pos.update({"x": x_mm, "y": y_mm, "z": z_mm})
+            if use_orientation:
+                self.current_tilt = tilt1
+                self.current_spin = spin1
             return True
 
         steps = max(1, int(math.ceil(duration * self.motion_rate_hz)))
@@ -318,9 +399,11 @@ class JsonTaskSequencer(Node):
             xi = x0 + dx * alpha
             yi = y0 + dy * alpha
             zi = z0 + dz * alpha
+            tilt_i = tilt0 + (tilt1 - tilt0) * alpha
+            spin_i = spin0 + (spin1 - spin0) * alpha
 
             tick_start = time.monotonic()
-            if not self._call_move_service(xi, yi, zi, idx):
+            if not self._call_move_pose_service(xi, yi, zi, tilt_i, spin_i, use_orientation, idx):
                 return False
 
             elapsed = time.monotonic() - tick_start
@@ -329,6 +412,9 @@ class JsonTaskSequencer(Node):
                 time.sleep(remaining)
 
         self.current_pos.update({"x": x_mm, "y": y_mm, "z": z_mm})
+        if use_orientation:
+            self.current_tilt = tilt1
+            self.current_spin = spin1
         return True
 
     def _call_custom_trajectory_service(
@@ -356,11 +442,23 @@ class JsonTaskSequencer(Node):
 
         return True
 
-    def _call_move_service(self, x_mm: float, y_mm: float, z_mm: float, idx: int) -> bool:
-        request = MoveToPoint.Request()
+    def _call_move_pose_service(
+        self,
+        x_mm: float,
+        y_mm: float,
+        z_mm: float,
+        tilt_rad: float,
+        spin_rad: float,
+        use_orientation: bool,
+        idx: int,
+    ) -> bool:
+        request = MoveToPose.Request()
         request.target = Point(x=float(x_mm), y=float(y_mm), z=float(z_mm))
+        request.tilt = float(tilt_rad)
+        request.spin = float(spin_rad)
+        request.use_orientation = bool(use_orientation)
 
-        future = self.move_to_point_client.call_async(request)
+        future = self.move_to_pose_client.call_async(request)
         rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
 
         if not future.done() or future.result() is None:
@@ -380,6 +478,23 @@ class JsonTaskSequencer(Node):
             f"[{idx}] moved to ({x_mm:.2f}, {y_mm:.2f}, {z_mm:.2f})"
         )
         return True
+
+    def _tasks_require_orientation(self, tasks: List[Dict[str, Any]]) -> bool:
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            action = str(task.get("action", "")).lower().strip()
+            if action in {"tilt", "spin"}:
+                return True
+            if any(key in task for key in ("tilt", "spin", "a", "c")):
+                return True
+        return False
+
+    def _read_optional_angle_rad(self, task: Dict[str, Any], *keys: str) -> Optional[float]:
+        for key in keys:
+            if key in task and task[key] is not None:
+                return float(task[key])
+        return None
 
     def _to_mm(self, value: Any) -> float:
         return float(value) * self.scale_to_mm

@@ -12,7 +12,7 @@ Provides forward and inverse kinematics as ROS 2 services. Accepts a config YAML
 
 Top-level control node. Sends joint trajectory commands to both the physical motors and the Gazebo simulation simultaneously.
 
-**Services:** `play_demo_trajectory`, `move_to_point`, `move_to_configuration`, `motion_demo`
+**Services:** `play_demo_trajectory`, `move_to_point`, `move_to_pose`, `move_to_configuration`, `motion_demo`
 
 Additional trajectory service: `play_custom_trajectory` (batched end-effector trajectory with step timing)
 
@@ -34,7 +34,7 @@ Bridges `/joint_states` (from `joint_state_broadcaster` in simulation) to the mo
 
 ### `gcode_parser.py` *(Python)*
 
-Executes a subset of G-code by calling `delta_motion_planner/move_to_point` for each motion command.
+Executes a subset of G-code by calling `delta_motion_planner/move_to_pose` for each motion command.
 
 If available, it uses `delta_motion_planner/play_custom_trajectory` for smoother batched execution.
 
@@ -42,13 +42,13 @@ Supported commands: `G0`, `G1`, `G20`, `G21`, `G28`, `G90`, `G91`, and feed `F`.
 
 ### `json_task_sequencer.py` *(Python)*
 
-Executes JSON task lists in sequence using `delta_motion_planner/move_to_point`.
+Executes JSON task lists in sequence using `delta_motion_planner/move_to_pose`.
 
 If available, it uses `delta_motion_planner/play_custom_trajectory` for smoother batched execution.
 
 Supported actions: `move`, `wait`, `home`.
 
-Source-compatible actions `tilt`, `spin`, and `suction` are accepted but skipped with warnings because this stack currently has no matching end-effector interfaces.
+Actions `tilt` and `spin` are supported through the `move_to_pose` interface. Action `suction` remains source-compatible and is skipped unless a dedicated suction interface is added.
 
 ### `range_scanner`
 

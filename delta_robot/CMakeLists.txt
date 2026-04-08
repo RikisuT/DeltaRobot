@@ -19,6 +19,9 @@ find_package(geometry_msgs REQUIRED)
 find_package(deltarobot_interfaces REQUIRED)
 find_package(delta_robot_sensors REQUIRED)
 find_package(trajectory_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 # Other Dependencies
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -39,7 +42,15 @@ target_link_libraries(kinematics ${deltarobot_interfaces_LIBRARIES})
 
 # MotionPlanner Node
 add_executable(motion_planner src/motion_planner.cpp)
-ament_target_dependencies(motion_planner rclcpp geometry_msgs trajectory_msgs deltarobot_interfaces delta_robot_sensors)
+ament_target_dependencies(motion_planner
+  rclcpp
+  geometry_msgs
+  trajectory_msgs
+  deltarobot_interfaces
+  delta_robot_sensors
+  tf2
+  tf2_ros
+  tf2_geometry_msgs)
 target_link_libraries(motion_planner ${deltarobot_interfaces_LIBRARIES})
 
 # Scanner Node
@@ -67,6 +78,8 @@ install(TARGETS
 # Install Python scripts
 install(PROGRAMS
   delta_robot/motor_control_node.py
+  delta_robot/motor_slider_tester.py
+  delta_robot/see_motors.py
   delta_robot/joint_state_bridge.py
   delta_robot/gcode_parser.py
   delta_robot/json_task_sequencer.py

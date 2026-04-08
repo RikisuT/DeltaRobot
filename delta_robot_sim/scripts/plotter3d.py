@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 import tf2_ros
@@ -11,63 +12,112 @@ class DeltaEEPlotter(Node):
     def __init__(self):
         super().__init__("delta_ee_plotter")
 
+        self.declare_parameter("marker_frame", "delta_robot/world_link")
+        self.declare_parameter("publish_rate_hz", 15.0)
+        self.declare_parameter("max_points", 250)
+
+        self.marker_frame = self.get_parameter("marker_frame").get_parameter_value().string_value
+        self.publish_rate_hz = max(
+            1.0,
+            self.get_parameter("publish_rate_hz").get_parameter_value().double_value,
+        )
+        self.max_points = max(10, self.get_parameter("max_points").get_parameter_value().integer_value)
+
         # TF Buffer and Listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        # Publisher for the 3D Line
-        self.marker_pub = self.create_publisher(Marker, "/delta_robot/ee_path", 10)
+        # Publisher for 3D trajectory lines
+        marker_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+        self.marker_pub = self.create_publisher(Marker, "/delta_robot/ee_path", marker_qos)
 
-        # Initialize the Line Strip Marker
-        self.marker = Marker()
-        self.marker.header.frame_id = "delta_robot"
-        self.marker.ns = "ee_trajectory"
-        self.marker.id = 0
-        self.marker.type = Marker.LINE_STRIP
-        self.marker.action = Marker.ADD
+        self.sim_marker = self._create_line_marker(
+            marker_id=0,
+            namespace="ee_trajectory_sim",
+            color=(0.0, 1.0, 0.0),
+        )
+        self.commanded_marker = self._create_line_marker(
+            marker_id=1,
+            namespace="ee_trajectory_commanded",
+            color=(1.0, 0.45, 0.0),
+        )
 
-        # Line appearance
-        self.marker.scale.x = 0.005  # Line thickness (5mm)
-        self.marker.color.r = 0.0
-        self.marker.color.g = 1.0  # Green line
-        self.marker.color.b = 0.0
-        self.marker.color.a = 1.0  # Opacity
+        self.sim_parent_frame = self.marker_frame
+        self.sim_child_frame = "delta_robot/end_effector_pin"
+        self.commanded_parent_frame = self.marker_frame
+        self.commanded_child_frame = "delta_robot/commanded_end_effector_pin"
 
-        # Timer to sample position at 30Hz
-        self.timer = self.create_timer(1.0 / 30.0, self.timer_callback)
+        self._last_sim_transform_error = ""
+        self._last_commanded_transform_error = ""
 
-    def timer_callback(self):
+        self.get_logger().info(
+            f"EE plotter configured with marker_frame={self.marker_frame}, "
+            f"publish_rate_hz={self.publish_rate_hz:.1f}, max_points={self.max_points}"
+        )
+
+        # Timer to sample and publish path markers at a bounded rate.
+        self.timer = self.create_timer(1.0 / self.publish_rate_hz, self.timer_callback)
+
+    def _create_line_marker(self, marker_id: int, namespace: str, color: tuple[float, float, float]) -> Marker:
+        marker = Marker()
+        marker.header.frame_id = self.marker_frame
+        marker.ns = namespace
+        marker.id = marker_id
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+        marker.scale.x = 0.005
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.color.a = 1.0
+        return marker
+
+    def _update_marker_from_tf(self, marker: Marker, parent_frame: str, child_frame: str, error_attr: str):
         try:
-            # Look up the transform
-            now = rclpy.time.Time()
-            trans = self.tf_buffer.lookup_transform(
-                "delta_robot/world_link", "delta_robot/EE", now
-            )
+            trans = self.tf_buffer.lookup_transform(parent_frame, child_frame, rclpy.time.Time())
 
-            # Extract translation
             p = Point()
             p.x = trans.transform.translation.x
             p.y = trans.transform.translation.y
             p.z = trans.transform.translation.z
 
-            # Add to points list (keep last 500 points to prevent lag)
-            self.marker.points.append(p)
-            if len(self.marker.points) > 500:
-                self.marker.points.pop(0)
-
-            # Update timestamp and publish
-            self.marker.header.stamp = self.get_clock().now().to_msg()
-            self.marker_pub.publish(self.marker)
+            marker.points.append(p)
+            if len(marker.points) > self.max_points:
+                marker.points.pop(0)
+            setattr(self, error_attr, "")
 
         except TransformException as ex:
-            # Avoid spamming logs if sim is still loading
-            if not hasattr(self, '_last_transform_error'):
-                self._last_transform_error = ""
-            
             error_msg = str(ex)
-            if error_msg != self._last_transform_error:
-                self.get_logger().info(f"Waiting for valid transform: {error_msg}")
-                self._last_transform_error = error_msg
+            if error_msg != getattr(self, error_attr):
+                self.get_logger().info(f"Waiting for valid transform {parent_frame} -> {child_frame}: {error_msg}")
+                setattr(self, error_attr, error_msg)
+
+    def timer_callback(self):
+        self._update_marker_from_tf(
+            self.sim_marker,
+            self.sim_parent_frame,
+            self.sim_child_frame,
+            "_last_sim_transform_error",
+        )
+        self._update_marker_from_tf(
+            self.commanded_marker,
+            self.commanded_parent_frame,
+            self.commanded_child_frame,
+            "_last_commanded_transform_error",
+        )
+
+        # Zero timestamp asks RViz to use the latest transform and prevents
+        # TF filter backlog when TF and marker updates are not perfectly synchronized.
+        self.sim_marker.header.stamp.sec = 0
+        self.sim_marker.header.stamp.nanosec = 0
+        self.commanded_marker.header.stamp.sec = 0
+        self.commanded_marker.header.stamp.nanosec = 0
+        self.marker_pub.publish(self.sim_marker)
+        self.marker_pub.publish(self.commanded_marker)
 
 
 def main():

@@ -42,7 +42,16 @@ def generate_launch_description():
                 executable="motion_planner",
                 name="motion_planner",
                 output="screen",
-                parameters=[{"controller_joint_names": controller_joint_names}],
+                parameters=[
+                    PathJoinSubstitution(
+                        [
+                            get_package_share_directory("delta_robot"),
+                            "config",
+                            "delta_config.yaml",
+                        ]
+                    ),
+                    {"controller_joint_names": controller_joint_names},
+                ],
             ),
             Node(
                 package="delta_robot",

@@ -33,7 +33,10 @@
 #include "deltarobot_interfaces/srv/delta_ik.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include <math.h>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
@@ -70,6 +73,26 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   this->param_live_controller_ms = this->get_parameter("live_controller_ms").as_int();
   this->declare_parameter<std::string>("live_target_topic", "delta_motion_planner/live_target");
   this->live_target_topic = this->get_parameter("live_target_topic").as_string();
+  this->declare_parameter<std::string>("live_orientation_topic", "delta_motion_planner/live_orientation");
+  this->live_orientation_topic = this->get_parameter("live_orientation_topic").as_string();
+  this->declare_parameter<std::string>("commanded_tf_parent_frame", "delta_robot/world_link");
+  this->commanded_tf_parent_frame = this->get_parameter("commanded_tf_parent_frame").as_string();
+  this->declare_parameter<std::string>("commanded_tf_child_frame", "delta_robot/commanded_end_effector_pin");
+  this->commanded_tf_child_frame = this->get_parameter("commanded_tf_child_frame").as_string();
+  this->declare_parameter("ee_to_tilt_axis_offset_m", 0.0);
+  this->ee_to_tilt_axis_offset_m = this->get_parameter("ee_to_tilt_axis_offset_m").as_double();
+  this->declare_parameter("tilt_axis_to_tool_tip_offset_m", 0.033);
+  this->tilt_axis_to_tool_tip_offset_m = this->get_parameter("tilt_axis_to_tool_tip_offset_m").as_double();
+  this->declare_parameter("tool_tip_to_object_center_offset_m", 0.0);
+  this->tool_tip_to_object_center_offset_m =
+    this->get_parameter("tool_tip_to_object_center_offset_m").as_double();
+  this->declare_parameter("enable_tilt_axis_compensation", true);
+  this->enable_tilt_axis_compensation =
+    this->get_parameter("enable_tilt_axis_compensation").as_bool();
+  this->parameters_callback_handle = this->add_on_set_parameters_callback(
+    [this](const std::vector<rclcpp::Parameter>& parameters) {
+      return this->handleParameterUpdate(parameters);
+    });
   this->declare_parameter<std::vector<std::string>>(
     "controller_joint_names",
     {"motor_joint_1", "motor_joint_2", "motor_joint_3", "differential_pinion_joint_1", "differential_pinion_joint_2", "differential_T_joint", "differential_EE_joint"});
@@ -82,12 +105,27 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   this->trajectory_pub = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
     "/joint_trajectory_controller/joint_trajectory",
     rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile());
+  this->commanded_tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(this);
+
+  RCLCPP_INFO(
+    get_logger(),
+    "Loaded offsets: ee_to_tilt_axis_offset_m=%.6f, tilt_axis_to_tool_tip_offset_m=%.6f, tool_tip_to_object_center_offset_m=%.6f, enable_tilt_axis_compensation=%s",
+    this->ee_to_tilt_axis_offset_m,
+    this->tilt_axis_to_tool_tip_offset_m,
+    this->tool_tip_to_object_center_offset_m,
+    this->enable_tilt_axis_compensation ? "true" : "false");
 
   this->live_target_sub = this->create_subscription<Point>(
     this->live_target_topic,
     rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
     [this](const Point::SharedPtr msg) {
       this->liveTargetCallback(msg);
+    });
+  this->live_orientation_sub = this->create_subscription<Float64MultiArray>(
+    this->live_orientation_topic,
+    rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
+    [this](const Float64MultiArray::SharedPtr msg) {
+      this->liveOrientationCallback(msg);
     });
 
   // Defer service server + timer creation until kinematics services are available
@@ -117,6 +155,18 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         [this](const std::shared_ptr<MoveToPoint::Request> request,
                std::shared_ptr<MoveToPoint::Response> response) {
           response->success = this->moveToPoint(request->target, true);
+        });
+
+      this->move_to_pose_server = create_service<MoveToPose>(
+        "delta_motion_planner/move_to_pose",
+        [this](const std::shared_ptr<MoveToPose::Request> request,
+               std::shared_ptr<MoveToPose::Response> response) {
+          response->success = this->moveToPose(
+            request->target,
+            request->tilt,
+            request->spin,
+            request->use_orientation,
+            true);
         });
 
       this->move_to_configuration_server = create_service<MoveToConfiguration>(
@@ -204,7 +254,53 @@ DeltaMotionPlanner::~DeltaMotionPlanner() {
   }
 }
 
-void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms) {
+rcl_interfaces::msg::SetParametersResult DeltaMotionPlanner::handleParameterUpdate(
+  const std::vector<rclcpp::Parameter>& parameters) {
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+
+  std::lock_guard<std::mutex> lock(this->offset_mutex);
+  for (const auto& parameter : parameters) {
+    if (parameter.get_name() == "ee_to_tilt_axis_offset_m") {
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        result.successful = false;
+        result.reason = "ee_to_tilt_axis_offset_m must be a double";
+        return result;
+      }
+      this->ee_to_tilt_axis_offset_m = parameter.as_double();
+    } else if (parameter.get_name() == "tilt_axis_to_tool_tip_offset_m") {
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        result.successful = false;
+        result.reason = "tilt_axis_to_tool_tip_offset_m must be a double";
+        return result;
+      }
+      this->tilt_axis_to_tool_tip_offset_m = parameter.as_double();
+    } else if (parameter.get_name() == "tool_tip_to_object_center_offset_m") {
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        result.successful = false;
+        result.reason = "tool_tip_to_object_center_offset_m must be a double";
+        return result;
+      }
+      this->tool_tip_to_object_center_offset_m = parameter.as_double();
+    } else if (parameter.get_name() == "enable_tilt_axis_compensation") {
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_BOOL) {
+        result.successful = false;
+        result.reason = "enable_tilt_axis_compensation must be a bool";
+        return result;
+      }
+      this->enable_tilt_axis_compensation = parameter.as_bool();
+    }
+  }
+
+  return result;
+}
+
+void DeltaMotionPlanner::publishMotorCommands(
+  const std::vector<DeltaJoints>& joint_traj,
+  const unsigned int delay_ms,
+  const double sim_tilt,
+  const double sim_spin,
+  const std::vector<Point>* ee_trajectory) {
   // Build a single JointTrajectory message with all points and cumulative time stamps
   // The joint_trajectory_controller rejects single-point messages whose timestamp has already passed
   trajectory_msgs::msg::JointTrajectory traj_msg;
@@ -212,12 +308,27 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
   traj_msg.joint_names = this->controller_joint_names;
 
   const unsigned int step_ms = (delay_ms > 0) ? delay_ms : static_cast<unsigned int>(this->param_traj_step_ms);
+  const double sim_tilt_cmd = std::isfinite(sim_tilt) ? sim_tilt : 0.0;
+  const double sim_spin_cmd = std::isfinite(sim_spin) ? sim_spin : 0.0;
+
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
     if (this->cancel_current_traj) break;
+    DeltaJoints command = joint_traj[i];
+    if (!std::isfinite(command.theta1) || !std::isfinite(command.theta2) || !std::isfinite(command.theta3)) {
+      RCLCPP_WARN(get_logger(), "Skipping joint command with invalid theta1-3 values");
+      continue;
+    }
+    if (!std::isfinite(command.theta4)) {
+      command.theta4 = 0.0;
+    }
+    if (!std::isfinite(command.theta5)) {
+      command.theta5 = 0.0;
+    }
+
     trajectory_msgs::msg::JointTrajectoryPoint point;
     point.positions = {
-      joint_traj[i].theta1, joint_traj[i].theta2, joint_traj[i].theta3,
-      0.0, 0.0, 0.0, 0.0
+      command.theta1, command.theta2, command.theta3,
+      command.theta4, command.theta5, sim_tilt_cmd, sim_spin_cmd
     };
     // Each point is step_ms further in the future
     const uint64_t t_ns = static_cast<uint64_t>(i + 1) * step_ms * 1000000ULL;
@@ -232,7 +343,24 @@ void DeltaMotionPlanner::publishMotorCommands(const std::vector<DeltaJoints>& jo
   // Publish the joint commands to the physical motors with a delay per point
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
     if (this->cancel_current_traj) break;
-    this->joint_pub->publish(joint_traj[i]);
+    DeltaJoints command = joint_traj[i];
+    if (!std::isfinite(command.theta1) || !std::isfinite(command.theta2) || !std::isfinite(command.theta3)) {
+      continue;
+    }
+    if (!std::isfinite(command.theta4)) {
+      command.theta4 = 0.0;
+    }
+    if (!std::isfinite(command.theta5)) {
+      command.theta5 = 0.0;
+    }
+    
+    // Publish TF for this trajectory point if end-effector trajectory is available
+    if (ee_trajectory && i < ee_trajectory->size()) {
+      const Point& ee_point = (*ee_trajectory)[i];
+      this->publishCommandedTargetTf(ee_point, sim_tilt_cmd, sim_spin_cmd);
+    }
+    
+    this->joint_pub->publish(command);
     rclcpp::sleep_for(std::chrono::milliseconds(step_ms));
   }
 }
@@ -259,43 +387,114 @@ void DeltaMotionPlanner::releaseMotionSlot() {
 }
 
 bool DeltaMotionPlanner::moveToPoint(const Point& point, bool require_task_mode) {
+  // Backward-compatibility shim: 3DOF point command uses the same core path as pose commands.
+  return this->moveToPose(point, 0.0, 0.0, false, require_task_mode);
+}
+
+bool DeltaMotionPlanner::moveToPose(
+  const Point& point,
+  double tilt,
+  double spin,
+  bool use_orientation,
+  bool require_task_mode) {
   {
     std::lock_guard<std::mutex> lock(this->mode_mutex);
     if (require_task_mode && this->current_mode != TASK_MODE) {
-      RCLCPP_WARN(get_logger(), "move_to_point rejected: not in TASK_MODE");
+      RCLCPP_WARN(get_logger(), "move_to_pose rejected: not in TASK_MODE");
       return false;
     }
     if (!require_task_mode && this->current_mode != LIVE_TEACH_MODE) {
-      RCLCPP_WARN(get_logger(), "live target rejected: not in LIVE_TEACH_MODE");
+      RCLCPP_WARN(get_logger(), "live pose rejected: not in LIVE_TEACH_MODE");
       return false;
     }
   }
 
-  if (!this->tryAcquireMotionSlot(require_task_mode ? "move_to_point" : "live target")) {
+  if (!this->tryAcquireMotionSlot(require_task_mode ? "move_to_pose" : "live pose")) {
     return false;
   }
 
-  // Perform IK to get the joint angles and to ensure if the point is reachable
+  const double tilt_cmd = use_orientation ? tilt : 0.0;
+  const double spin_cmd = use_orientation ? spin : 0.0;
+  this->publishCommandedTargetTf(point, tilt_cmd, spin_cmd);
+
+  Point wrist = point;
+  // Incoming Cartesian points are in millimeters; YAML offsets are configured in meters.
+  double tool_offset_m = 0.0;
+  double object_center_offset_m = 0.0;
+  double axis_offset_m = 0.0;
+  bool enable_axis_compensation = true;
+  {
+    std::lock_guard<std::mutex> lock(this->offset_mutex);
+    tool_offset_m = this->tilt_axis_to_tool_tip_offset_m;
+    object_center_offset_m = this->tool_tip_to_object_center_offset_m;
+    axis_offset_m = this->ee_to_tilt_axis_offset_m;
+    enable_axis_compensation = this->enable_tilt_axis_compensation;
+  }
+  const double tool_offset_mm = tool_offset_m * 1000.0;
+  const double object_center_offset_mm = object_center_offset_m * 1000.0;
+  const double axis_offset_mm = axis_offset_m * 1000.0;
+  const double tool_plus_object_offset_mm = enable_axis_compensation
+    ? (tool_offset_mm + object_center_offset_mm)
+    : 0.0;
+  // Apply wrist compensation for IK only. TF remains at the raw commanded point.
+  wrist.x = point.x + (tool_plus_object_offset_mm * std::sin(tilt_cmd));
+  if (enable_axis_compensation) {
+    wrist.z = point.z - axis_offset_mm - (tool_plus_object_offset_mm * std::cos(tilt_cmd));
+  } else {
+    wrist.z = point.z - axis_offset_mm - (tool_offset_mm + object_center_offset_mm);
+  }
+
   auto ik_request = std::make_shared<DeltaIK::Request>();
-  ik_request->solution = point;
+  ik_request->solution = wrist;
 
   auto future_result = this->delta_ik_client->async_send_request(
     ik_request,
-    [this](ServiceResponseFuture<DeltaIK> future) {
-    auto response = future.get();
-    if (response->success) {
-      // If the IK solution is valid, move to the point
-      std::vector<DeltaJoints> joint_traj = {response->joint_angles};
-      this->publishMotorCommands(joint_traj, 0);
-    } else {
-      RCLCPP_ERROR(get_logger(), "IK solution not found for the given end effector point");
-    }
-    this->releaseMotionSlot();
-  }
-  );
+    [this, tilt_cmd, spin_cmd](ServiceResponseFuture<DeltaIK> future) {
+      auto response = future.get();
+      if (!response->success) {
+        RCLCPP_ERROR(get_logger(), "IK solution not found for requested pose");
+        this->releaseMotionSlot();
+        return;
+      }
+
+      DeltaJoints command = response->joint_angles;
+      command.theta4 = tilt_cmd + (2.0 * spin_cmd);
+      command.theta5 = (2.0 * spin_cmd) - tilt_cmd;
+      if (!std::isfinite(command.theta4) || !std::isfinite(command.theta5)) {
+        RCLCPP_ERROR(get_logger(), "Differential mapping produced invalid theta4/theta5");
+        this->releaseMotionSlot();
+        return;
+      }
+
+      std::vector<DeltaJoints> joint_traj = {command};
+      this->publishMotorCommands(joint_traj, 0, tilt_cmd, spin_cmd);
+      this->releaseMotionSlot();
+    });
 
   (void)future_result;
   return true;
+}
+
+void DeltaMotionPlanner::publishCommandedTargetTf(const Point& point_mm, double tilt_rad, double spin_rad) {
+  if (!this->commanded_tf_broadcaster) {
+    return;
+  }
+
+  geometry_msgs::msg::TransformStamped tf_msg;
+  tf_msg.header.stamp = this->now();
+  tf_msg.header.frame_id = this->commanded_tf_parent_frame;
+  tf_msg.child_frame_id = this->commanded_tf_child_frame;
+  tf_msg.transform.translation.x = point_mm.x / 1000.0;
+  tf_msg.transform.translation.y = point_mm.y / 1000.0;
+  tf_msg.transform.translation.z = point_mm.z / 1000.0;
+
+  tf2::Quaternion q;
+  // Tilt is about Y and spin is about Z in the current wrist model.
+  q.setRPY(0.0, tilt_rad, spin_rad);
+  q.normalize();
+  tf_msg.transform.rotation = tf2::toMsg(q);
+
+  this->commanded_tf_broadcaster->sendTransform(tf_msg);
 }
 
 void DeltaMotionPlanner::liveTargetCallback(const Point::SharedPtr msg) {
@@ -316,6 +515,30 @@ void DeltaMotionPlanner::liveTargetCallback(const Point::SharedPtr msg) {
     std::lock_guard<std::mutex> lock(this->live_target_mutex);
     this->live_target_buffer = *msg;
     this->live_target_updated = true;
+  }
+}
+
+void DeltaMotionPlanner::liveOrientationCallback(const Float64MultiArray::SharedPtr msg) {
+  if (!this->initialized) {
+    return;
+  }
+  if (msg->data.size() < 2) {
+    RCLCPP_WARN(get_logger(), "live_orientation message requires [tilt, spin]");
+    return;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->current_mode != LIVE_TEACH_MODE) {
+      return;
+    }
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(this->live_orientation_mutex);
+    this->live_tilt_buffer = msg->data[0];
+    this->live_spin_buffer = msg->data[1];
+    this->live_orientation_updated = true;
   }
 }
 
@@ -378,10 +601,11 @@ bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
   convert_request->end_effector_trajectory = trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
+  auto ee_trajectory = std::make_shared<std::vector<Point>>(trajectory);
   // ---------- BEGIN_CITATION [1] ----------
   auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
     convert_request,
-    [this, joint_traj](ServiceResponseFuture<ConvertToJointTrajectory> future) {
+    [this, joint_traj, ee_trajectory](ServiceResponseFuture<ConvertToJointTrajectory> future) {
     auto response = future.get();
     if (response->joint_trajectory.empty()) {
       RCLCPP_ERROR(get_logger(), "Trajectory conversion failed");
@@ -398,10 +622,10 @@ bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
     this->cancel_current_traj = false;
 
     // Start new trajectory thread
-    this->traj_thread = std::make_unique<std::thread>([this, joint_traj]() {
+    this->traj_thread = std::make_unique<std::thread>([this, joint_traj, ee_trajectory]() {
       // Reload parameter in case it changed
       this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
-      this->publishMotorCommands(*joint_traj, this->param_traj_step_ms);
+      this->publishMotorCommands(*joint_traj, this->param_traj_step_ms, 0.0, 0.0, &(*ee_trajectory));
       this->releaseMotionSlot();
     });
   }
@@ -444,9 +668,10 @@ void DeltaMotionPlanner::playCustomTrajectory(
   convert_request->end_effector_trajectory = request->trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
+  auto ee_trajectory = std::make_shared<std::vector<Point>>(request->trajectory);
   auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
     convert_request,
-    [this, joint_traj, step_ms](ServiceResponseFuture<ConvertToJointTrajectory> future) {
+    [this, joint_traj, ee_trajectory, step_ms](ServiceResponseFuture<ConvertToJointTrajectory> future) {
       auto convert_response = future.get();
       if (convert_response->joint_trajectory.empty()) {
         RCLCPP_ERROR(get_logger(), "Custom trajectory conversion failed");
@@ -461,8 +686,8 @@ void DeltaMotionPlanner::playCustomTrajectory(
       }
       this->cancel_current_traj = false;
 
-      this->traj_thread = std::make_unique<std::thread>([this, joint_traj, step_ms]() {
-        this->publishMotorCommands(*joint_traj, step_ms);
+      this->traj_thread = std::make_unique<std::thread>([this, joint_traj, ee_trajectory, step_ms]() {
+        this->publishMotorCommands(*joint_traj, step_ms, 0.0, 0.0, &(*ee_trajectory));
         this->releaseMotionSlot();
       });
     }
@@ -747,6 +972,7 @@ void DeltaMotionPlanner::setMotionMode(
     // If switching from LIVE_TEACH to TASK, mark the buffer as not updated
     if (this->current_mode == LIVE_TEACH_MODE && new_mode == TASK_MODE) {
       this->live_target_updated = false;
+      this->live_orientation_updated = false;
     }
 
     if (new_mode == LIVE_TEACH_MODE) {
@@ -788,9 +1014,21 @@ void DeltaMotionPlanner::liveMotionController() {
 
   // If a new target was available, execute the motion immediately
   if (has_target) {
+    bool use_orientation = false;
+    double tilt = 0.0;
+    double spin = 0.0;
+    {
+      std::lock_guard<std::mutex> lock(this->live_orientation_mutex);
+      if (this->live_orientation_updated) {
+        use_orientation = true;
+        tilt = this->live_tilt_buffer;
+        spin = this->live_spin_buffer;
+      }
+    }
+
     // Call the internal motion path directly without waiting for the service callback.
     // This provides low-latency real-time motion for live teach mode.
-    if (this->moveToPoint(target, false)) {
+    if (this->moveToPose(target, tilt, spin, use_orientation, false)) {
       std::lock_guard<std::mutex> lock(this->live_target_mutex);
       this->live_target_updated = false;
     }

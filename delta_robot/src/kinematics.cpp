@@ -35,6 +35,7 @@
 #include "kinematics.hpp"
 #include <vector>
 #include <math.h>
+#include <limits>
 #include <eigen3/Eigen/Dense>
 
 const float sqrt3 = sqrt(3.0);
@@ -178,6 +179,8 @@ void DeltaKinematics::inverseKinematics(const std::shared_ptr<DeltaIK::Request> 
   response->joint_angles.theta1 = joints.theta1;
   response->joint_angles.theta2 = joints.theta2;
   response->joint_angles.theta3 = joints.theta3;
+  response->joint_angles.theta4 = std::numeric_limits<double>::quiet_NaN();
+  response->joint_angles.theta5 = std::numeric_limits<double>::quiet_NaN();
   response->success = true;
 }
 
@@ -210,6 +213,8 @@ void DeltaKinematics::convertToJointTrajectory(const std::shared_ptr<ConvertToJo
     joint_angles.theta1 = joints.theta1;
     joint_angles.theta2 = joints.theta2;
     joint_angles.theta3 = joints.theta3;
+    joint_angles.theta4 = std::numeric_limits<double>::quiet_NaN();
+    joint_angles.theta5 = std::numeric_limits<double>::quiet_NaN();
 
     joint_trajectory.push_back(joint_angles);
   }
@@ -309,6 +314,8 @@ DeltaJoints DeltaKinematics::deltaIK(float x, float y, float z) {
   joints.theta1 = theta1;
   joints.theta2 = theta2;
   joints.theta3 = theta3;
+  joints.theta4 = std::numeric_limits<double>::quiet_NaN();
+  joints.theta5 = std::numeric_limits<double>::quiet_NaN();
   return joints;
 }
 

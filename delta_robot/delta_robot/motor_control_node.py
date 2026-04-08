@@ -2,6 +2,7 @@
 
 import glob
 import math
+import errno
 import time
 import rclpy
 from rclpy.node import Node
@@ -15,7 +16,7 @@ from std_msgs.msg import Float32MultiArray
 # ST Servo Constants
 BAUDRATE = 500000
 DEVICE_NAME = "/dev/ttyUSB0"
-MAX_ST_MOVING_SPEED = 7500
+MAX_ST_MOVING_SPEED = 0
 MAX_ST_MOVING_ACC = 254
 SERIAL_TIMEOUT_S = 0.08
 SERIAL_CMD_WAIT_S = 0.12
@@ -73,6 +74,21 @@ class DeltaMotorControl(Node):
         self.stream_feedback_period_ms = int(
             self.declare_parameter("stream_feedback_period_ms", DEFAULT_STREAM_PERIOD_MS).value
         )
+        self.motor1_center_ticks = int(
+            self.declare_parameter("motor1_center_ticks", int(UP_POS)).value
+        )
+        self.motor2_center_ticks = int(
+            self.declare_parameter("motor2_center_ticks", int(UP_POS)).value
+        )
+        self.motor3_center_ticks = int(
+            self.declare_parameter("motor3_center_ticks", int(UP_POS)).value
+        )
+        self.motor4_center_ticks = int(
+            self.declare_parameter("motor4_center_ticks", int(UP_POS)).value
+        )
+        self.motor5_center_ticks = int(
+            self.declare_parameter("motor5_center_ticks", int(UP_POS)).value
+        )
 
         self.bicep_moving_speed = max(0, min(MAX_ST_MOVING_SPEED, self.bicep_moving_speed))
         self.bicep_moving_acc = max(0, min(MAX_ST_MOVING_ACC, self.bicep_moving_acc))
@@ -82,6 +98,14 @@ class DeltaMotorControl(Node):
         self.read_fail_watchdog_limit = max(1, self.read_fail_watchdog_limit)
         self.stream_feedback_period_ms = max(10, self.stream_feedback_period_ms)
         self.consecutive_read_failures = 0
+
+        self.center_ticks_by_id = {
+            1: max(0, min(MOTOR_MAX_POS, self.motor1_center_ticks)),
+            2: max(0, min(MOTOR_MAX_POS, self.motor2_center_ticks)),
+            3: max(0, min(MOTOR_MAX_POS, self.motor3_center_ticks)),
+            4: max(0, min(MOTOR_MAX_POS, self.motor4_center_ticks)),
+            5: max(0, min(MOTOR_MAX_POS, self.motor5_center_ticks)),
+        }
 
         # Serial-bridge I/O state.
         self.serial_port = None
@@ -227,10 +251,18 @@ class DeltaMotorControl(Node):
         updates = 0
         drained = 0
         while drained < max_lines:
-            waiting = self.serial_port.in_waiting
+            try:
+                waiting = self.serial_port.in_waiting
+            except (OSError, serial.SerialException) as exc:
+                self._handle_serial_io_error("checking in_waiting", exc)
+                return -1
             if waiting <= 0:
                 break
-            raw = self.serial_port.readline()
+            try:
+                raw = self.serial_port.readline()
+            except (OSError, serial.SerialException) as exc:
+                self._handle_serial_io_error("reading serial feedback", exc)
+                return -1
             if not raw:
                 break
             line = raw.decode("utf-8", errors="replace").strip()
@@ -239,6 +271,21 @@ class DeltaMotorControl(Node):
                 updates += 1
 
         return updates
+
+    def _handle_serial_io_error(self, operation, exc):
+        err_no = getattr(exc, "errno", None)
+        err_name = errno.errorcode.get(err_no, "UNKNOWN") if isinstance(err_no, int) else "UNKNOWN"
+        self.get_logger().error(
+            f"Serial I/O error while {operation} on {self.device_name}: {exc} "
+            f"(errno={err_no}, code={err_name}). Disabling hardware I/O."
+        )
+        try:
+            if self.serial_port is not None:
+                self.serial_port.close()
+        except Exception as close_exc:  # noqa: BLE001
+            self.get_logger().warning(f"Failed to close serial port after I/O error: {close_exc}")
+        self.serial_port = None
+        self.hardware_available = False
 
     def _send_setn_binary(self, entries):
         if not self.serial_port or not entries:
@@ -368,11 +415,13 @@ class DeltaMotorControl(Node):
 
         self.hardware_available = True
 
-    def convert_to_radians(self, motor_pos):
-        return (motor_pos - UP_POS) / RAD_TO_TICKS
+    def convert_to_radians(self, motor_pos, st_id):
+        center = self.center_ticks_by_id.get(st_id, int(UP_POS))
+        return (motor_pos - center) / RAD_TO_TICKS
 
-    def convert_to_motor_position(self, theta):
-        motor_pos = RAD_TO_TICKS * theta + UP_POS
+    def convert_to_motor_position(self, theta, st_id):
+        center = self.center_ticks_by_id.get(st_id, int(UP_POS))
+        motor_pos = RAD_TO_TICKS * theta + center
         return int(max(0, min(MOTOR_MAX_POS, motor_pos)))
 
     def convert_to_motor_velocity(self, theta_vel):
@@ -397,11 +446,11 @@ class DeltaMotorControl(Node):
             return
 
         motor_positions = [
-            self.convert_to_motor_position(self._get_joint_value(msg, 1)),
-            self.convert_to_motor_position(self._get_joint_value(msg, 2)),
-            self.convert_to_motor_position(self._get_joint_value(msg, 3)),
-            self.convert_to_motor_position(self._get_joint_value(msg, 4)),
-            self.convert_to_motor_position(self._get_joint_value(msg, 5)),
+            self.convert_to_motor_position(self._get_joint_value(msg, 1), 1),
+            self.convert_to_motor_position(self._get_joint_value(msg, 2), 2),
+            self.convert_to_motor_position(self._get_joint_value(msg, 3), 3),
+            self.convert_to_motor_position(self._get_joint_value(msg, 4), 4),
+            self.convert_to_motor_position(self._get_joint_value(msg, 5), 5),
         ]
 
         all_ok = True
@@ -453,11 +502,10 @@ class DeltaMotorControl(Node):
             response.success = True
             return response
 
-        motor_min = self.convert_to_motor_position(request.min_rad)
-        motor_max = self.convert_to_motor_position(request.max_rad)
-
         all_ok = True
         for st_id in self.visible_motor_ids:
+            motor_min = self.convert_to_motor_position(request.min_rad, st_id)
+            motor_max = self.convert_to_motor_position(request.max_rad, st_id)
             lines = self._bridge_request(
                 f"LIMITS {st_id} {motor_min} {motor_max}",
                 wait_s=0.15,
@@ -477,6 +525,8 @@ class DeltaMotorControl(Node):
             return
 
         updates = self._drain_serial_feedback(max_lines=300)
+        if updates < 0:
+            return
         if updates == 0:
             self.consecutive_read_failures += 1
         else:
@@ -514,15 +564,15 @@ class DeltaMotorControl(Node):
             vel_msg.header.stamp = self.get_clock().now().to_msg()
 
         if hasattr(pos_msg, "theta1"):
-            pos_msg.theta1 = self.convert_to_radians(motor_positions[0])
+            pos_msg.theta1 = self.convert_to_radians(motor_positions[0], 1)
         if hasattr(pos_msg, "theta2"):
-            pos_msg.theta2 = self.convert_to_radians(motor_positions[1])
+            pos_msg.theta2 = self.convert_to_radians(motor_positions[1], 2)
         if hasattr(pos_msg, "theta3"):
-            pos_msg.theta3 = self.convert_to_radians(motor_positions[2])
+            pos_msg.theta3 = self.convert_to_radians(motor_positions[2], 3)
         if hasattr(pos_msg, "theta4"):
-            pos_msg.theta4 = self.convert_to_radians(motor_positions[3])
+            pos_msg.theta4 = self.convert_to_radians(motor_positions[3], 4)
         if hasattr(pos_msg, "theta5"):
-            pos_msg.theta5 = self.convert_to_radians(motor_positions[4])
+            pos_msg.theta5 = self.convert_to_radians(motor_positions[4], 5)
 
         if vel_msg is not None:
             # ticks/sec -> rpm -> rad/s

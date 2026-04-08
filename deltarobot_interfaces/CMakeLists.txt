@@ -43,6 +43,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ConvertToJointVelTrajectory.srv"
   "srv/SetJointLimits.srv"
   "srv/MoveToPoint.srv"
+  "srv/MoveToPose.srv"
   "srv/MoveToConfiguration.srv"
   "srv/MotionDemo.srv"
   "srv/PlayCustomTrajectory.srv"

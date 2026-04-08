@@ -12,7 +12,7 @@ import rclpy
 from geometry_msgs.msg import Point
 from rclpy.node import Node
 
-from deltarobot_interfaces.srv import MoveToPoint, PlayCustomTrajectory
+from deltarobot_interfaces.srv import MoveToPoint, MoveToPose, PlayCustomTrajectory
 
 
 class GCodeParserNode(Node):
@@ -22,6 +22,7 @@ class GCodeParserNode(Node):
         super().__init__("gcode_parser")
 
         self.declare_parameter("move_to_point_service", "delta_motion_planner/move_to_point")
+        self.declare_parameter("move_to_pose_service", "delta_motion_planner/move_to_pose")
         self.declare_parameter("play_custom_trajectory_service", "delta_motion_planner/play_custom_trajectory")
         self.declare_parameter("default_units", "meters")
         self.declare_parameter("home_z_mm", -220.0)
@@ -31,6 +32,9 @@ class GCodeParserNode(Node):
 
         self.move_to_point_service = (
             self.get_parameter("move_to_point_service").get_parameter_value().string_value
+        )
+        self.move_to_pose_service = (
+            self.get_parameter("move_to_pose_service").get_parameter_value().string_value
         )
         self.play_custom_trajectory_service = (
             self.get_parameter("play_custom_trajectory_service").get_parameter_value().string_value
@@ -58,6 +62,7 @@ class GCodeParserNode(Node):
         self.pos = {"X": 0.0, "Y": 0.0, "Z": self.home_z_mm, "A": 0.0, "C": 0.0}
 
         self.move_to_point_client = self.create_client(MoveToPoint, self.move_to_point_service)
+        self.move_to_pose_client = self.create_client(MoveToPose, self.move_to_pose_service)
         self.play_custom_trajectory_client = self.create_client(
             PlayCustomTrajectory, self.play_custom_trajectory_service
         )
@@ -78,6 +83,11 @@ class GCodeParserNode(Node):
                 f"Service not available: {self.move_to_point_service}"
             )
             return 1
+        if not self.move_to_pose_client.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error(
+                f"Service not available: {self.move_to_pose_service}"
+            )
+            return 1
 
         self.custom_trajectory_available = self.play_custom_trajectory_client.wait_for_service(
             timeout_sec=2.0
@@ -86,7 +96,15 @@ class GCodeParserNode(Node):
             self.get_logger().info(
                 f"Using batched trajectory service: {self.play_custom_trajectory_service}"
             )
-            return self._run_batched_file()
+            batched_result = self._run_batched_file()
+            if batched_result == -1:
+                self.get_logger().info(
+                    "Batched mode disabled for this file due to A/C orientation commands; retrying point-wise"
+                )
+                self.custom_trajectory_available = False
+                self.pos = {"X": 0.0, "Y": 0.0, "Z": self.home_z_mm, "A": 0.0, "C": 0.0}
+            else:
+                return batched_result
         else:
             self.get_logger().warn(
                 "Batched trajectory service not available, falling back to point-wise MoveToPoint"
@@ -153,12 +171,22 @@ class GCodeParserNode(Node):
                 x0 = self.pos["X"]
                 y0 = self.pos["Y"]
                 z0 = self.pos["Z"]
+                a0 = self.pos["A"]
+                c0 = self.pos["C"]
                 dx = target["X"] - x0
                 dy = target["Y"] - y0
                 dz = target["Z"] - z0
+                da = target["A"] - a0
+                dc = target["C"] - c0
                 distance = math.sqrt(dx * dx + dy * dy + dz * dz)
                 duration_s = max(self.min_move_time_s, distance / self.speed_mm_s)
                 steps = max(1, int(math.ceil(duration_s / step_dt)))
+
+                orientation_changed = (abs(da) > 1e-12) or (abs(dc) > 1e-12)
+                if orientation_changed:
+                    # Batched trajectory currently carries XYZ only.
+                    # When orientation is commanded, fall back to point-wise pose calls.
+                    return -1
 
                 for step in range(1, steps + 1):
                     alpha = step / steps
@@ -174,6 +202,8 @@ class GCodeParserNode(Node):
                 self.pos["X"] = target["X"]
                 self.pos["Y"] = target["Y"]
                 self.pos["Z"] = target["Z"]
+                self.pos["A"] = target["A"]
+                self.pos["C"] = target["C"]
 
         if not points:
             self.get_logger().warn("No motion points generated from G-code")
@@ -258,11 +288,20 @@ class GCodeParserNode(Node):
             return True
 
         if cmd == "G28":
-            return self._move_to(0.0, 0.0, self.home_z_mm, line_number)
+            return self._move_to(0.0, 0.0, self.home_z_mm, self.pos["A"], self.pos["C"], False, line_number)
 
         if cmd in {"G0", "G1"}:
             target = self._calculate_target(params)
-            return self._move_to(target["X"], target["Y"], target["Z"], line_number)
+            use_orientation = ("A" in params) or ("C" in params)
+            return self._move_to(
+                target["X"],
+                target["Y"],
+                target["Z"],
+                target["A"],
+                target["C"],
+                use_orientation,
+                line_number,
+            )
 
         self.get_logger().warn(f"Line {line_number}: unsupported command {cmd}, skipping")
         return True
@@ -281,10 +320,21 @@ class GCodeParserNode(Node):
                 next_pos[axis] += delta
         return next_pos
 
-    def _move_to(self, x_mm: float, y_mm: float, z_mm: float, line_number: int) -> bool:
+    def _move_to(
+        self,
+        x_mm: float,
+        y_mm: float,
+        z_mm: float,
+        a_rad: float,
+        c_rad: float,
+        use_orientation: bool,
+        line_number: int,
+    ) -> bool:
         x0 = self.pos["X"]
         y0 = self.pos["Y"]
         z0 = self.pos["Z"]
+        a0 = self.pos["A"]
+        c0 = self.pos["C"]
 
         dx = x_mm - x0
         dy = y_mm - y0
@@ -313,6 +363,8 @@ class GCodeParserNode(Node):
             self.pos["X"] = x_mm
             self.pos["Y"] = y_mm
             self.pos["Z"] = z_mm
+            self.pos["A"] = a_rad
+            self.pos["C"] = c_rad
             # Service returns when accepted; sleep for commanded duration to preserve ordering.
             time.sleep(duration_s)
             self.get_logger().info(
@@ -325,9 +377,11 @@ class GCodeParserNode(Node):
             xi = x0 + dx * alpha
             yi = y0 + dy * alpha
             zi = z0 + dz * alpha
+            ai = a0 + (a_rad - a0) * alpha
+            ci = c0 + (c_rad - c0) * alpha
 
             tick_start = time.monotonic()
-            if not self._call_move_service(xi, yi, zi, line_number):
+            if not self._call_move_pose_service(xi, yi, zi, ai, ci, use_orientation, line_number):
                 return False
 
             elapsed = time.monotonic() - tick_start
@@ -338,6 +392,8 @@ class GCodeParserNode(Node):
         self.pos["X"] = x_mm
         self.pos["Y"] = y_mm
         self.pos["Z"] = z_mm
+        self.pos["A"] = a_rad
+        self.pos["C"] = c_rad
         self.get_logger().info(
             f"Line {line_number}: move ({x_mm:.2f}, {y_mm:.2f}, {z_mm:.2f}) in {duration_s:.2f}s ({steps} fallback step(s))"
         )
@@ -367,11 +423,23 @@ class GCodeParserNode(Node):
             return False
         return True
 
-    def _call_move_service(self, x_mm: float, y_mm: float, z_mm: float, line_number: int) -> bool:
+    def _call_move_pose_service(
+        self,
+        x_mm: float,
+        y_mm: float,
+        z_mm: float,
+        tilt_rad: float,
+        spin_rad: float,
+        use_orientation: bool,
+        line_number: int,
+    ) -> bool:
 
-        request = MoveToPoint.Request()
+        request = MoveToPose.Request()
         request.target = Point(x=float(x_mm), y=float(y_mm), z=float(z_mm))
-        future = self.move_to_point_client.call_async(request)
+        request.tilt = float(tilt_rad)
+        request.spin = float(spin_rad)
+        request.use_orientation = bool(use_orientation)
+        future = self.move_to_pose_client.call_async(request)
         rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
 
         if not future.done() or future.result() is None:

@@ -16,7 +16,7 @@ import numpy as np
 # --- Configuration ---
 WINDOW_SIZE = 200
 UPDATE_INTERVAL = 50  # ms
-SERVO_IDS = [1, 2, 3]
+SERVO_IDS = [1, 2, 3, 4, 5]
 SAMPLE_INTERVAL = UPDATE_INTERVAL / 1000.0  # seconds per sample
 
 

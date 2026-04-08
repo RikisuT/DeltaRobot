@@ -8,13 +8,19 @@
 #include "deltarobot_interfaces/srv/convert_to_joint_trajectory.hpp"
 #include "deltarobot_interfaces/srv/convert_to_joint_vel_trajectory.hpp"
 #include "deltarobot_interfaces/srv/move_to_point.hpp"
+#include "deltarobot_interfaces/srv/move_to_pose.hpp"
 #include "deltarobot_interfaces/srv/move_to_configuration.hpp"
 #include "deltarobot_interfaces/srv/motion_demo.hpp"
 #include "deltarobot_interfaces/srv/play_custom_trajectory.hpp"
 #include "deltarobot_interfaces/srv/set_motion_mode.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
+#include "tf2_ros/transform_broadcaster.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -30,10 +36,12 @@ using Point = geometry_msgs::msg::Point;
 using DeltaJoints = deltarobot_interfaces::msg::DeltaJoints;
 using DeltaJointVels = deltarobot_interfaces::msg::DeltaJointVels;
 using MoveToPoint = deltarobot_interfaces::srv::MoveToPoint;
+using MoveToPose = deltarobot_interfaces::srv::MoveToPose;
 using MoveToConfiguration = deltarobot_interfaces::srv::MoveToConfiguration;
 using MotionDemo = deltarobot_interfaces::srv::MotionDemo;
 using PlayCustomTrajectory = deltarobot_interfaces::srv::PlayCustomTrajectory;
 using SetMotionMode = deltarobot_interfaces::srv::SetMotionMode;
+using Float64MultiArray = std_msgs::msg::Float64MultiArray;
 
 class DeltaMotionPlanner : public rclcpp::Node {
 public:
@@ -63,11 +71,27 @@ private:
   std::atomic<bool> live_target_updated{false};
   std::mutex live_target_mutex;
 
+  // Live orientation buffer (tilt, spin) in radians
+  double live_tilt_buffer = 0.0;
+  double live_spin_buffer = 0.0;
+  std::atomic<bool> live_orientation_updated{false};
+  std::mutex live_orientation_mutex;
+
   // Parameters
   int param_traj_step_ms = 20;  // Default to 20ms (50Hz)
   int param_live_controller_ms = 20;  // Default to 20ms (50Hz)
+  double ee_to_tilt_axis_offset_m = 0.0;
+  double tilt_axis_to_tool_tip_offset_m = 0.033;
+  double tool_tip_to_object_center_offset_m = 0.0;
+  bool enable_tilt_axis_compensation = true;
+  std::mutex offset_mutex;
   std::vector<std::string> controller_joint_names;
   std::string live_target_topic;
+  std::string live_orientation_topic;
+  std::string commanded_tf_parent_frame;
+  std::string commanded_tf_child_frame;
+
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameters_callback_handle;
 
   // Timers
   rclcpp::TimerBase::SharedPtr init_timer;  // ← only once
@@ -79,10 +103,13 @@ private:
   rclcpp::Publisher<DeltaJointVels>::SharedPtr joint_vel_pub;
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_pub;
   rclcpp::Subscription<Point>::SharedPtr live_target_sub;
+  rclcpp::Subscription<Float64MultiArray>::SharedPtr live_orientation_sub;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> commanded_tf_broadcaster;
 
   // Servers
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
   rclcpp::Service<MoveToPoint>::SharedPtr move_to_point_server;
+  rclcpp::Service<MoveToPose>::SharedPtr move_to_pose_server;
   rclcpp::Service<MoveToConfiguration>::SharedPtr move_to_configuration_server;
   rclcpp::Service<MotionDemo>::SharedPtr motion_demo_server;
   rclcpp::Service<PlayCustomTrajectory>::SharedPtr play_custom_trajectory_server;
@@ -94,17 +121,26 @@ private:
   rclcpp::Client<DeltaIK>::SharedPtr delta_ik_client;
   rclcpp::Client<DeltaFK>::SharedPtr delta_fk_client;
 
-  void publishMotorCommands(const std::vector<DeltaJoints>& joint_traj, const unsigned int delay_ms = 50);
+  void publishMotorCommands(
+    const std::vector<DeltaJoints>& joint_traj,
+    const unsigned int delay_ms = 50,
+    const double sim_tilt = std::numeric_limits<double>::quiet_NaN(),
+    const double sim_spin = std::numeric_limits<double>::quiet_NaN(),
+    const std::vector<Point>* ee_trajectory = nullptr);
   void publishMotorVelocityCommands(const std::vector<DeltaJointVels>& joint_vel_traj, const unsigned int delay_ms = 50);
 
   bool tryAcquireMotionSlot(const char* action_name);
   void releaseMotionSlot();
 
   bool moveToPoint(const Point& point, bool require_task_mode = true);
+  bool moveToPose(const Point& point, double tilt, double spin, bool use_orientation, bool require_task_mode = true);
   bool moveToConfiguration(const DeltaJoints& joints, bool require_task_mode = true);
   void moveThroughPoints(const std::vector<Point>& points);
   void liveTargetCallback(const Point::SharedPtr msg);
+  void liveOrientationCallback(const Float64MultiArray::SharedPtr msg);
   void liveMotionController();  // Fixed-rate controller for live teach mode
+  void publishCommandedTargetTf(const Point& point_mm, double tilt_rad, double spin_rad);
+  rcl_interfaces::msg::SetParametersResult handleParameterUpdate(const std::vector<rclcpp::Parameter>& parameters);
   
   void setMotionMode(
     const std::shared_ptr<SetMotionMode::Request> request,

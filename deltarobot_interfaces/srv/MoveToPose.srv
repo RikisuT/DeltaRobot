@@ -1,0 +1,6 @@
+geometry_msgs/Point target
+float64 tilt # [rad]
+float64 spin # [rad]
+bool use_orientation
+---
+bool success
