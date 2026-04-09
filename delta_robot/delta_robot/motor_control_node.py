@@ -405,6 +405,34 @@ class DeltaMotorControl(Node):
                 f"TORQUE {st_id} 1", wait_s=0.15, stop_prefixes=("OK torque", "ERR")
             )
             self.get_logger().info(f"Torque enabled for Motor ID: {st_id}")
+            
+            # Set servo mode (Mode 0) after enabling torque
+            mode_rsp = self._bridge_request(
+                f"MODE {st_id} 0", wait_s=0.15, stop_prefixes=("OK mode", "ERR")
+            )
+            if any(ln.startswith(f"OK mode id={st_id}") for ln in mode_rsp):
+                self.get_logger().info(f"Servo mode set for Motor ID: {st_id}")
+            else:
+                self.get_logger().warning(f"Motor ID {st_id} servo mode not confirmed")
+            
+            # Verify servo mode by reading actual mode with AREAD
+            verify_rsp = self._bridge_request(
+                f"AREAD {st_id}", wait_s=0.15, stop_prefixes=("FBA", "ERR")
+            )
+            mode_verified = False
+            for line in verify_rsp:
+                if f"id={st_id}" in line and "mode=0" in line:
+                    mode_verified = True
+                    self.get_logger().info(f"Motor ID {st_id} verified in servo mode")
+                    break
+            if not mode_verified:
+                self.get_logger().warning(f"Motor ID {st_id} servo mode verification failed")
+            
+            # Move to midpoint after setting servo mode
+            self._bridge_request(
+                f"MIDDLE {st_id}", wait_s=0.15, stop_prefixes=("OK middle", "ERR")
+            )
+            self.get_logger().info(f"Motor ID {st_id} moved to midpoint")
 
         self._bridge_request("TMODE POS", wait_s=0.15, stop_prefixes=("OK tmode", "ERR"))
         self._bridge_request(

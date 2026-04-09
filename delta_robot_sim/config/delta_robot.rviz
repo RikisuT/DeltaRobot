@@ -568,8 +568,7 @@ Visualization Manager:
           delta_robot/virtual_pivot_3:
             {}
           delta_robot/world_link:
-            delta_robot/commanded_end_effector_pin:
-              {}
+            {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/Marker
@@ -607,25 +606,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.85959792137146
+      Distance: 0.8092617392539978
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.022773997858166695
-        Y: 0.00031393353128805757
-        Z: -0.13733308017253876
+        X: -0.01418326236307621
+        Y: 0.0179176926612854
+        Z: -0.1815488636493683
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3003983199596405
+      Pitch: 0.22539782524108887
       Target Frame: delta_robot
       Value: Orbit (rviz)
-      Yaw: 4.553584575653076
+      Yaw: 6.113592624664307
     Saved: ~
 Window Geometry:
   Displays:

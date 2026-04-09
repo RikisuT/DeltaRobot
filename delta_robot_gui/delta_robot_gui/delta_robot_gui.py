@@ -443,17 +443,17 @@ class DeltaRobotGui(QMainWindow):
             header_layout.addLayout(title_col)
             header_layout.addStretch(1)
 
-            self.minimize_button = QPushButton("-")
+            self.minimize_button = QPushButton("▁")
             self.minimize_button.setObjectName("windowControlButton")
             self.minimize_button.setFixedSize(30, 24)
             self.minimize_button.clicked.connect(self.showMinimized)
 
-            self.maximize_button = QPushButton("[]")
+            self.maximize_button = QPushButton("□")
             self.maximize_button.setObjectName("windowControlButton")
             self.maximize_button.setFixedSize(30, 24)
             self.maximize_button.clicked.connect(self._toggle_maximize)
 
-            self.close_button = QPushButton("x")
+            self.close_button = QPushButton("✕")
             self.close_button.setObjectName("windowCloseButton")
             self.close_button.setFixedSize(30, 24)
             self.close_button.clicked.connect(self.close)
@@ -532,8 +532,12 @@ class DeltaRobotGui(QMainWindow):
     def _toggle_maximize(self):
         if self.isMaximized():
             self.showNormal()
+            if hasattr(self, "maximize_button"):
+                self.maximize_button.setText("□")
         else:
             self.showMaximized()
+            if hasattr(self, "maximize_button"):
+                self.maximize_button.setText("❐")
 
     def _build_cartesian_tab(self) -> QWidget:
         tab = QWidget()
@@ -579,7 +583,7 @@ class DeltaRobotGui(QMainWindow):
 
         self.x_slider = LabeledSlider(SliderSpec("X", -120, 120, 0))
         self.y_slider = LabeledSlider(SliderSpec("Y", -120, 120, 0))
-        self.z_slider = LabeledSlider(SliderSpec("Z", -260, -120, -180))
+        self.z_slider = LabeledSlider(SliderSpec("Z", -350, -140, -199))
         self.tilt_slider = LabeledSlider(SliderSpec("Tilt", -90, 90, 0))
         self.spin_slider = LabeledSlider(SliderSpec("Spin", -180, 180, 0))
 
@@ -1651,7 +1655,7 @@ class DeltaRobotGui(QMainWindow):
     def _home_position(self):
         self.x_slider.set_mm(0)
         self.y_slider.set_mm(0)
-        self.z_slider.set_mm(-180)
+        self.z_slider.set_mm(-199)
         self.tilt_slider.set_mm(0)
         self.spin_slider.set_mm(0)
         self._send_target_from_sliders(silent=False)

@@ -9,45 +9,18 @@ PORT = "/dev/ttyUSB0"
 BAUD = 500000
 TIMEOUT_S = 0.2
 
-# EEPROM angle limit update (disabled by default for safety).
+MOTOR_IDS = (1, 2, 3, 4, 5)
+
 APPLY_NEW_LIMITS = True
 NEW_LIMIT_MIN = 0
-NEW_LIMIT_MAX = 4090
+NEW_LIMIT_MAX = 4095
 
-# Read robustness / pass-fail reporting
-GETP_RETRIES = 3
-GETP_RETRY_WAIT_S = 0.05
-TARGET_TOLERANCE_TICKS = 30
-SETTLE_TIMEOUT_S = 2.5
-SETTLE_SAMPLE_S = 0.12
+SWING_CYCLES = 6
+SWING_SPEED = 800
+SWING_ACC = 20
+DWELL_S = 1.0
 
-# Logging controls
 LOG_COMMANDS = True
-LOG_GETP = False
-
-LIMIT_IDS = (1, 2, 3, 4, 5)
-
-
-def extract_pos(lines):
-    for line in lines:
-        match = re.search(r"pos=(\d+)", line)
-        if match:
-            return int(match.group(1))
-    return None
-
-
-def extract_limits(lines):
-    for line in lines:
-        match = re.search(r"LIMITS\s+id=(\d+)\s+min=(\d+)\s+max=(\d+)", line)
-        if match:
-            return int(match.group(1)), int(match.group(2)), int(match.group(3))
-    return None
-
-
-def last_nonempty(lines):
-    if not lines:
-        return ""
-    return lines[-1]
 
 
 def send_cmd(ser, command, wait_s=0.08, log=True):
@@ -66,68 +39,33 @@ def send_cmd(ser, command, wait_s=0.08, log=True):
     return lines
 
 
-def poll_pos(ser, motor_id, n=3, pause_s=0.08):
-    values = []
-    for _ in range(n):
-        lines = []
-        pos = None
-        for attempt in range(GETP_RETRIES):
-            lines = send_cmd(ser, f"GETP {motor_id}", wait_s=pause_s, log=LOG_GETP)
-            pos = extract_pos(lines)
-            if pos is not None:
-                break
-            if attempt < (GETP_RETRIES - 1):
-                time.sleep(GETP_RETRY_WAIT_S)
-        if pos is not None:
-            values.append(pos)
-        else:
-            print(f"WARN: GETP {motor_id} failed after {GETP_RETRIES} retries ({last_nonempty(lines)})")
-    return values
+def mode_ack_ok(lines, motor_id, expected_mode):
+    expected = f"OK mode id={motor_id} value={expected_mode}"
+    return any(expected in line for line in lines)
 
 
-def compact_values(values):
-    if not values:
-        return "[]"
-    if len(values) <= 4:
-        return str(values)
-    return f"[{values[0]} .. {values[-1]}] (n={len(values)})"
+def middle_ack_ok(lines, motor_id):
+    expected = f"OK middle id={motor_id}"
+    return any(expected in line for line in lines)
 
 
-def summarize_step(target, id4_values, id5_values):
-    def eval_motor(values):
-        if not values:
-            return "NO_DATA"
-        err = abs(values[-1] - target)
-        return f"OK err={err}" if err <= TARGET_TOLERANCE_TICKS else f"MISS err={err}"
-
-    s4 = eval_motor(id4_values)
-    s5 = eval_motor(id5_values)
-    print(
-        f"SUMMARY target={target} tol={TARGET_TOLERANCE_TICKS} | "
-        f"ID4={s4} last={id4_values[-1] if id4_values else 'NA'} | "
-        f"ID5={s5} last={id5_values[-1] if id5_values else 'NA'}"
-    )
+def extract_limits(lines):
+    for line in lines:
+        match = re.search(r"LIMITS\s+id=(\d+)\s+min=(\d+)\s+max=(\d+)", line)
+        if match:
+            return int(match.group(1)), int(match.group(2)), int(match.group(3))
+    return None
 
 
-def wait_for_target(ser, motor_id, target, timeout_s=SETTLE_TIMEOUT_S):
-    start = time.monotonic()
-    samples = []
-    while (time.monotonic() - start) < timeout_s:
-        vals = poll_pos(ser, motor_id, n=1, pause_s=0.06)
-        if vals:
-            pos = vals[-1]
-            samples.append(pos)
-            if abs(pos - target) <= TARGET_TOLERANCE_TICKS:
-                break
-        time.sleep(SETTLE_SAMPLE_S)
-    return samples
+def force_servo_mode(ser, motor_id):
+    mode_lines = send_cmd(ser, f"MODE {motor_id} 0", log=LOG_COMMANDS)
+    if not mode_ack_ok(mode_lines, motor_id, 0):
+        raise RuntimeError(f"ID{motor_id} MODE command was not acknowledged")
 
 
-def target_in_range(target, lim):
-    if lim is None:
-        return True
-    _id, min_v, max_v = lim
-    return min_v <= target <= max_v
+def set_all(ser, pos, speed, acc):
+    for motor_id in MOTOR_IDS:
+        send_cmd(ser, f"SET {motor_id} {pos} {speed} {acc}", log=LOG_COMMANDS)
 
 
 def main():
@@ -137,59 +75,58 @@ def main():
     ser.reset_output_buffer()
 
     try:
-        # Disable stream spam so command responses are easy to read.
         send_cmd(ser, "STREAM 0", log=LOG_COMMANDS)
-        send_cmd(ser, "TMODE POS", log=LOG_COMMANDS)
+        tmode_lines = send_cmd(ser, "TMODE POS", log=LOG_COMMANDS)
+        if not any("OK tmode=POS" in line for line in tmode_lines):
+            raise RuntimeError("Failed to set telemetry mode to POS")
 
-        limits_by_id = {motor_id: None for motor_id in LIMIT_IDS}
-        for motor_id in LIMIT_IDS:
-            send_cmd(ser, f"MODE {motor_id} 0", log=LOG_COMMANDS)
+        limits_by_id = {}
+        print("\nPreparing motors (servo mode + torque + limits)")
+        for motor_id in MOTOR_IDS:
+            force_servo_mode(ser, motor_id)
             send_cmd(ser, f"TORQUE {motor_id} 1", log=LOG_COMMANDS)
-            send_cmd(ser, f"TORQUE_LIMIT {motor_id}", log=LOG_COMMANDS)
+
+            if APPLY_NEW_LIMITS:
+                send_cmd(
+                    ser,
+                    f"LIMITS {motor_id} {NEW_LIMIT_MIN} {NEW_LIMIT_MAX}",
+                    log=LOG_COMMANDS,
+                )
+
             limit_lines = send_cmd(ser, f"LIMITS {motor_id}", log=LOG_COMMANDS)
-            limits_by_id[motor_id] = extract_limits(limit_lines)
+            limits = extract_limits(limit_lines)
+            if limits is None:
+                raise RuntimeError(f"Failed reading limits for ID{motor_id}")
+            limits_by_id[motor_id] = (limits[1], limits[2])
+            print(f"ID{motor_id} limits: min={limits[1]} max={limits[2]}")
 
-        if APPLY_NEW_LIMITS:
-            print(
-                f"\nApplying new limits to IDs {LIMIT_IDS}: min={NEW_LIMIT_MIN}, max={NEW_LIMIT_MAX}"
-            )
-            for motor_id in LIMIT_IDS:
-                send_cmd(ser, f"LIMITS {motor_id} {NEW_LIMIT_MIN} {NEW_LIMIT_MAX}", log=LOG_COMMANDS)
-                limit_lines = send_cmd(ser, f"LIMITS {motor_id}", log=LOG_COMMANDS)
-                limits_by_id[motor_id] = extract_limits(limit_lines)
+        swing_min = min(lim[0] for lim in limits_by_id.values())
+        swing_max = max(lim[1] for lim in limits_by_id.values())
 
-        print("\nInitial positions")
-        p4 = poll_pos(ser, 4)
-        p5 = poll_pos(ser, 5)
-        print(f"ID4: {compact_values(p4)}")
-        print(f"ID5: {compact_values(p5)}")
+        print(
+            f"\nSwinging all motors between {swing_min} and {swing_max} "
+            f"for {SWING_CYCLES} cycles"
+        )
 
-        tests = [
-            (1500, 800, 20),
-            (2048, 800, 20),
-            (2500, 800, 20),
-            (2800, 800, 20),
-        ]
+        for cycle in range(1, SWING_CYCLES + 1):
+            print(f"\nCycle {cycle}/{SWING_CYCLES}: -> MIN")
+            set_all(ser, swing_min, SWING_SPEED, SWING_ACC)
+            time.sleep(DWELL_S)
 
-        for pos, speed, acc in tests:
-            print(f"\n--- Move both motors to pos={pos}, speed={speed}, acc={acc} ---")
-            if not target_in_range(pos, limits_by_id[4]):
-                print(
-                    f"WARN: target {pos} is outside ID4 limits "
-                    f"[{limits_by_id[4][1]}, {limits_by_id[4][2]}]"
-                )
-            if not target_in_range(pos, limits_by_id[5]):
-                print(
-                    f"WARN: target {pos} is outside ID5 limits "
-                    f"[{limits_by_id[5][1]}, {limits_by_id[5][2]}]"
-                )
-            send_cmd(ser, f"SET 4 {pos} {speed} {acc}", log=LOG_COMMANDS)
-            send_cmd(ser, f"SET 5 {pos} {speed} {acc}", log=LOG_COMMANDS)
-            p4 = wait_for_target(ser, 4, pos)
-            p5 = wait_for_target(ser, 5, pos)
-            print(f"ID4: {compact_values(p4)}")
-            print(f"ID5: {compact_values(p5)}")
-            summarize_step(pos, p4, p5)
+            print(f"Cycle {cycle}/{SWING_CYCLES}: -> MAX")
+            set_all(ser, swing_max, SWING_SPEED, SWING_ACC)
+            time.sleep(DWELL_S)
+
+        print("\nMoving each motor to midpoint command")
+        for motor_id in MOTOR_IDS:
+            middle_lines = send_cmd(ser, f"MIDDLE {motor_id}", log=LOG_COMMANDS)
+            if middle_ack_ok(middle_lines, motor_id):
+                continue
+
+            # Fallback: half of each motor's configured max limit.
+            midpoint = limits_by_id[motor_id][1] // 2
+            print(f"ID{motor_id}: MIDDLE not acknowledged, fallback midpoint={midpoint}")
+            send_cmd(ser, f"SET {motor_id} {midpoint} {SWING_SPEED} {SWING_ACC}", log=LOG_COMMANDS)
 
         print("\nDone.")
     finally:

@@ -1,7 +1,7 @@
 delta_kinematics:
   ros__parameters:
-    base_triangle_side_length: 346.41016 # [mm] (r_base=100 mm, SB = r_base * 2 * sqrt(3))
-    end_effector_side_length: 112.58330 # [mm] (r_ee=32.5 mm, SP = r_ee * 2 * sqrt(3))
+    base_triangle_side_length: 173.20508 # [mm] (r_base=100 mm, SB = r_base * sqrt(3))
+    end_effector_side_length: 56.29184 # [mm] (r_ee=32.5 mm, SP = r_ee * sqrt(3))
     active_link_length: 100.0 # [mm]
     passive_link_length: 200.0 # [mm]
     passive_link_width: 42.84670 # [mm]
