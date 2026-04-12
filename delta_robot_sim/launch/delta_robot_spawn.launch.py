@@ -195,6 +195,14 @@ def generate_launch_description():
                 executable="plotter3d.py",
                 name="delta_ee_plotter",
                 output="screen",
+                parameters=[
+                    {
+                        "marker_frame": "delta_robot/frame",
+                        "sim_child_frame": "delta_robot/end_effector_pin",
+                        "commanded_child_frame": "delta_robot/commanded_end_effector_pin",
+                        "calculated_fk_child_frame": "delta_robot/calculated_fk_end_effector_pin",
+                    }
+                ],
             )
         ],
     )

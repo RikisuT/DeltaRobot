@@ -90,6 +90,8 @@ private:
   std::string live_orientation_topic;
   std::string commanded_tf_parent_frame;
   std::string commanded_tf_child_frame;
+  std::string calculated_fk_tf_parent_frame;
+  std::string calculated_fk_tf_child_frame;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameters_callback_handle;
 
@@ -105,6 +107,7 @@ private:
   rclcpp::Subscription<Point>::SharedPtr live_target_sub;
   rclcpp::Subscription<Float64MultiArray>::SharedPtr live_orientation_sub;
   std::unique_ptr<tf2_ros::TransformBroadcaster> commanded_tf_broadcaster;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> calculated_fk_tf_broadcaster;
 
   // Servers
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
@@ -139,7 +142,17 @@ private:
   void liveTargetCallback(const Point::SharedPtr msg);
   void liveOrientationCallback(const Float64MultiArray::SharedPtr msg);
   void liveMotionController();  // Fixed-rate controller for live teach mode
+  void publishTfStream(
+    tf2_ros::TransformBroadcaster* broadcaster,
+    const std::string& parent_frame,
+    const std::string& child_frame,
+    const Point& point_mm,
+    double tilt_rad,
+    double spin_rad);
   void publishCommandedTargetTf(const Point& point_mm, double tilt_rad, double spin_rad);
+  void publishCalculatedFkTf(const Point& point_mm, double tilt_rad, double spin_rad);
+  void publishCalculatedFkTfFromJointCommand(const DeltaJoints& joints, double tilt_rad, double spin_rad);
+  Point convertWristToToolPoint(const Point& wrist_point_mm, double tilt_rad);
   rcl_interfaces::msg::SetParametersResult handleParameterUpdate(const std::vector<rclcpp::Parameter>& parameters);
   
   void setMotionMode(

@@ -12,9 +12,12 @@ class DeltaEEPlotter(Node):
     def __init__(self):
         super().__init__("delta_ee_plotter")
 
-        self.declare_parameter("marker_frame", "delta_robot/world_link")
+        self.declare_parameter("marker_frame", "delta_robot/frame")
         self.declare_parameter("publish_rate_hz", 15.0)
         self.declare_parameter("max_points", 250)
+        self.declare_parameter("sim_child_frame", "delta_robot/end_effector_pin")
+        self.declare_parameter("commanded_child_frame", "delta_robot/commanded_end_effector_pin")
+        self.declare_parameter("calculated_fk_child_frame", "delta_robot/calculated_fk_end_effector_pin")
 
         self.marker_frame = self.get_parameter("marker_frame").get_parameter_value().string_value
         self.publish_rate_hz = max(
@@ -22,6 +25,9 @@ class DeltaEEPlotter(Node):
             self.get_parameter("publish_rate_hz").get_parameter_value().double_value,
         )
         self.max_points = max(10, self.get_parameter("max_points").get_parameter_value().integer_value)
+        sim_child_frame = self.get_parameter("sim_child_frame").get_parameter_value().string_value
+        commanded_child_frame = self.get_parameter("commanded_child_frame").get_parameter_value().string_value
+        calculated_fk_child_frame = self.get_parameter("calculated_fk_child_frame").get_parameter_value().string_value
 
         # TF Buffer and Listener
         self.tf_buffer = tf2_ros.Buffer()
@@ -45,14 +51,36 @@ class DeltaEEPlotter(Node):
             namespace="ee_trajectory_commanded",
             color=(1.0, 0.45, 0.0),
         )
+        self.calculated_fk_marker = self._create_line_marker(
+            marker_id=2,
+            namespace="ee_trajectory_calculated_fk",
+            color=(0.1, 0.7, 1.0),
+        )
 
-        self.sim_parent_frame = self.marker_frame
-        self.sim_child_frame = "delta_robot/end_effector_pin"
-        self.commanded_parent_frame = self.marker_frame
-        self.commanded_child_frame = "delta_robot/commanded_end_effector_pin"
+        self.tf_traces = [
+            {
+                "marker": self.sim_marker,
+                "parent": self.marker_frame,
+                "child": sim_child_frame,
+                "error_attr": "_last_sim_transform_error",
+            },
+            {
+                "marker": self.commanded_marker,
+                "parent": self.marker_frame,
+                "child": commanded_child_frame,
+                "error_attr": "_last_commanded_transform_error",
+            },
+            {
+                "marker": self.calculated_fk_marker,
+                "parent": self.marker_frame,
+                "child": calculated_fk_child_frame,
+                "error_attr": "_last_calculated_fk_transform_error",
+            },
+        ]
 
         self._last_sim_transform_error = ""
         self._last_commanded_transform_error = ""
+        self._last_calculated_fk_transform_error = ""
 
         self.get_logger().info(
             f"EE plotter configured with marker_frame={self.marker_frame}, "
@@ -97,27 +125,21 @@ class DeltaEEPlotter(Node):
                 setattr(self, error_attr, error_msg)
 
     def timer_callback(self):
-        self._update_marker_from_tf(
-            self.sim_marker,
-            self.sim_parent_frame,
-            self.sim_child_frame,
-            "_last_sim_transform_error",
-        )
-        self._update_marker_from_tf(
-            self.commanded_marker,
-            self.commanded_parent_frame,
-            self.commanded_child_frame,
-            "_last_commanded_transform_error",
-        )
+        for trace in self.tf_traces:
+            self._update_marker_from_tf(
+                trace["marker"],
+                trace["parent"],
+                trace["child"],
+                trace["error_attr"],
+            )
 
         # Zero timestamp asks RViz to use the latest transform and prevents
         # TF filter backlog when TF and marker updates are not perfectly synchronized.
-        self.sim_marker.header.stamp.sec = 0
-        self.sim_marker.header.stamp.nanosec = 0
-        self.commanded_marker.header.stamp.sec = 0
-        self.commanded_marker.header.stamp.nanosec = 0
-        self.marker_pub.publish(self.sim_marker)
-        self.marker_pub.publish(self.commanded_marker)
+        for trace in self.tf_traces:
+            marker = trace["marker"]
+            marker.header.stamp.sec = 0
+            marker.header.stamp.nanosec = 0
+            self.marker_pub.publish(marker)
 
 
 def main():
