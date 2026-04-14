@@ -152,13 +152,14 @@ private:
   void publishCommandedTargetTf(const Point& point_mm, double tilt_rad, double spin_rad);
   void publishCalculatedFkTf(const Point& point_mm, double tilt_rad, double spin_rad);
   void publishCalculatedFkTfFromJointCommand(const DeltaJoints& joints, double tilt_rad, double spin_rad);
-  Point convertWristToToolPoint(const Point& wrist_point_mm, double tilt_rad);
+  Point convertWristToToolPoint(const Point& wrist_point_mm, double tilt_rad, double spin_rad);
   rcl_interfaces::msg::SetParametersResult handleParameterUpdate(const std::vector<rclcpp::Parameter>& parameters);
   
   void setMotionMode(
     const std::shared_ptr<SetMotionMode::Request> request,
     std::shared_ptr<SetMotionMode::Response> response);
 
+  std::vector<Point> applyZOffsetToTrajectory(const std::vector<Point>& trajectory);
   bool playTrajectory(const std::vector<Point>& trajectory);
   void playCustomTrajectory(
     const std::shared_ptr<PlayCustomTrajectory::Request> request,

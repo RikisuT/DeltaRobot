@@ -75,11 +75,11 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   this->live_target_topic = this->get_parameter("live_target_topic").as_string();
   this->declare_parameter<std::string>("live_orientation_topic", "delta_motion_planner/live_orientation");
   this->live_orientation_topic = this->get_parameter("live_orientation_topic").as_string();
-  this->declare_parameter<std::string>("commanded_tf_parent_frame", "delta_robot/frame");
+  this->declare_parameter<std::string>("commanded_tf_parent_frame", "world_link");
   this->commanded_tf_parent_frame = this->get_parameter("commanded_tf_parent_frame").as_string();
   this->declare_parameter<std::string>("commanded_tf_child_frame", "delta_robot/commanded_end_effector_pin");
   this->commanded_tf_child_frame = this->get_parameter("commanded_tf_child_frame").as_string();
-  this->declare_parameter<std::string>("calculated_fk_tf_parent_frame", "delta_robot/frame");
+  this->declare_parameter<std::string>("calculated_fk_tf_parent_frame", "world_link");
   this->calculated_fk_tf_parent_frame = this->get_parameter("calculated_fk_tf_parent_frame").as_string();
   this->declare_parameter<std::string>("calculated_fk_tf_child_frame", "delta_robot/calculated_fk_end_effector_pin");
   this->calculated_fk_tf_child_frame = this->get_parameter("calculated_fk_tf_child_frame").as_string();
@@ -425,10 +425,35 @@ bool DeltaMotionPlanner::moveToPose(
   const double spin_cmd = use_orientation ? spin : 0.0;
   this->publishCommandedTargetTf(point, tilt_cmd, spin_cmd);
 
-  // Use the commanded Cartesian point directly for IK. Applying tool/axis offsets
-  // here shifts the physical robot target (not just TF visualization), which can
-  // introduce an apparent extra Z offset.
   Point wrist = point;
+  // Incoming Cartesian points are in millimeters; YAML offsets are configured in meters.
+  double tool_offset_m = 0.0;
+  double object_center_offset_m = 0.0;
+  double axis_offset_m = 0.0;
+  bool enable_axis_compensation = true;
+  {
+    std::lock_guard<std::mutex> lock(this->offset_mutex);
+    tool_offset_m = this->tilt_axis_to_tool_tip_offset_m;
+    object_center_offset_m = this->tool_tip_to_object_center_offset_m;
+    axis_offset_m = this->ee_to_tilt_axis_offset_m;
+    enable_axis_compensation = this->enable_tilt_axis_compensation;
+  }
+  const double tool_offset_mm = tool_offset_m * 1000.0;
+  const double object_center_offset_mm = object_center_offset_m * 1000.0;
+  const double axis_offset_mm = axis_offset_m * 1000.0;
+  const double tool_plus_object_offset_mm = enable_axis_compensation
+    ? (tool_offset_mm + object_center_offset_mm)
+    : 0.0;
+  // Apply wrist compensation for IK only. TF remains at the raw commanded point.
+  wrist.x = point.x + (tool_plus_object_offset_mm * std::sin(tilt_cmd));
+  wrist.y = point.y;
+  if (enable_axis_compensation) {
+    wrist.z = point.z - axis_offset_mm - (tool_plus_object_offset_mm * std::cos(tilt_cmd));
+  } else {
+    wrist.x = point.x;
+    wrist.y = point.y;
+    wrist.z = point.z - axis_offset_mm - (tool_offset_mm + object_center_offset_mm);
+  }
 
   auto ik_request = std::make_shared<DeltaIK::Request>();
   ik_request->solution = wrist;
@@ -490,6 +515,27 @@ void DeltaMotionPlanner::publishTfStream(
   tf_msg.transform.translation.y = point_mm.y / 1000.0;
   tf_msg.transform.translation.z = point_mm.z / 1000.0;
 
+  double tool_offset_m = 0.0;
+  double object_center_offset_m = 0.0;
+  double axis_offset_m = 0.0;
+  bool enable_axis_compensation = true;
+  {
+    std::lock_guard<std::mutex> lock(this->offset_mutex);
+    tool_offset_m = this->tilt_axis_to_tool_tip_offset_m;
+    object_center_offset_m = this->tool_tip_to_object_center_offset_m;
+    axis_offset_m = this->ee_to_tilt_axis_offset_m;
+    enable_axis_compensation = this->enable_tilt_axis_compensation;
+  }
+
+  const double total_offset_m = tool_offset_m + object_center_offset_m;
+  if (!enable_axis_compensation) {
+    // Project tool-axis offset into world XYZ using the commanded tilt/spin.
+    const double offset_x = total_offset_m * std::sin(tilt_rad);
+    const double offset_z = total_offset_m* std::cos(tilt_rad) - axis_offset_m -0.00513;
+    tf_msg.transform.translation.x -= offset_x;
+    tf_msg.transform.translation.z += offset_z;
+  }
+
   tf2::Quaternion wrist_orientation;
   // Tilt is about Y and spin is about Z in the current wrist model.
   wrist_orientation.setRPY(0.0, tilt_rad, spin_rad);
@@ -498,20 +544,21 @@ void DeltaMotionPlanner::publishTfStream(
   // rotate Z by +90 deg, then Y by +180 deg. This only changes orientation.
   constexpr double kPi = 3.14159265358979323846;
   constexpr double kHalfPi = 0.5 * kPi;
-  tf2::Quaternion rot_z_90;
-  rot_z_90.setRPY(0.0, 0.0, kHalfPi);
-  tf2::Quaternion rot_y_180;
-  rot_y_180.setRPY(0.0, kPi, 0.0);
+  tf2::Quaternion rot_z_180;
+  rot_z_180.setRPY(kPi, 0.0, 0.0);
 
   // Fixed frame correction should be applied in parent/world frame space.
-  tf2::Quaternion corrected_orientation = rot_y_180 * rot_z_90 * wrist_orientation;
+  tf2::Quaternion corrected_orientation = rot_z_180 * wrist_orientation;
   corrected_orientation.normalize();
   tf_msg.transform.rotation = tf2::toMsg(corrected_orientation);
 
   broadcaster->sendTransform(tf_msg);
 }
 
-Point DeltaMotionPlanner::convertWristToToolPoint(const Point& wrist_point_mm, double tilt_rad) {
+Point DeltaMotionPlanner::convertWristToToolPoint(
+  const Point& wrist_point_mm,
+  double tilt_rad,
+  double spin_rad) {
   double tool_offset_m = 0.0;
   double object_center_offset_m = 0.0;
   double axis_offset_m = 0.0;
@@ -531,10 +578,14 @@ Point DeltaMotionPlanner::convertWristToToolPoint(const Point& wrist_point_mm, d
 
   Point tool_point = wrist_point_mm;
   if (enable_axis_compensation) {
-    tool_point.x = wrist_point_mm.x - (tool_plus_object_offset_mm * std::sin(tilt_rad));
+    tool_point.x = wrist_point_mm.x -
+      (tool_plus_object_offset_mm * std::sin(tilt_rad) * std::cos(spin_rad));
+    tool_point.y = wrist_point_mm.y -
+      (tool_plus_object_offset_mm * std::sin(tilt_rad) * std::sin(spin_rad));
     tool_point.z = wrist_point_mm.z + axis_offset_mm + (tool_plus_object_offset_mm * std::cos(tilt_rad));
   } else {
     tool_point.x = wrist_point_mm.x;
+    tool_point.y = wrist_point_mm.y;
     tool_point.z = wrist_point_mm.z + axis_offset_mm + tool_plus_object_offset_mm;
   }
 
@@ -570,7 +621,7 @@ void DeltaMotionPlanner::publishCalculatedFkTfFromJointCommand(
         return;
       }
 
-      const Point tool_point = this->convertWristToToolPoint(response->solution, tilt_rad);
+      const Point tool_point = this->convertWristToToolPoint(response->solution, tilt_rad, spin_rad);
       this->publishCalculatedFkTf(tool_point, tilt_rad, spin_rad);
     });
   (void)future_result;
@@ -662,6 +713,33 @@ void DeltaMotionPlanner::moveThroughPoints(const std::vector<Point>& points) {
   (void)points;
 }
 
+std::vector<Point> DeltaMotionPlanner::applyZOffsetToTrajectory(const std::vector<Point>& trajectory) {
+  // Apply z-offset adjustment so that when IK solves for the wrist position,
+  // the end-effector will actually be at the commanded position.
+  std::vector<Point> adjusted_trajectory = trajectory;
+  
+  double tool_offset_m = 0.0;
+  double object_center_offset_m = 0.0;
+  double axis_offset_m = 0.0;
+  bool enable_axis_compensation = true;
+  {
+    std::lock_guard<std::mutex> lock(this->offset_mutex);
+    tool_offset_m = this->tilt_axis_to_tool_tip_offset_m;
+    object_center_offset_m = this->tool_tip_to_object_center_offset_m;
+    axis_offset_m = this->ee_to_tilt_axis_offset_m;
+    enable_axis_compensation = this->enable_tilt_axis_compensation;
+  }
+  
+  if (enable_axis_compensation) {
+    const double total_offset_mm = (tool_offset_m + object_center_offset_m + axis_offset_m) * 1000.0;
+    for (auto& point : adjusted_trajectory) {
+      point.z -= total_offset_mm;
+    }
+  }
+  
+  return adjusted_trajectory;
+}
+
 bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
   {
     std::lock_guard<std::mutex> lock(this->mode_mutex);
@@ -675,9 +753,12 @@ bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
     return false;
   }
 
+  // Apply z-offset adjustment so the end-effector reaches the commanded position
+  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(trajectory);
+
   // Create a joint trajectory using the convert_to_joint_trajectory service
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
-  convert_request->end_effector_trajectory = trajectory;
+  convert_request->end_effector_trajectory = adjusted_trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
   auto ee_trajectory = std::make_shared<std::vector<Point>>(trajectory);
@@ -743,8 +824,11 @@ void DeltaMotionPlanner::playCustomTrajectory(
     return;
   }
 
+  // Apply z-offset adjustment so the end-effector reaches the commanded position
+  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(request->trajectory);
+
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
-  convert_request->end_effector_trajectory = request->trajectory;
+  convert_request->end_effector_trajectory = adjusted_trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
   auto ee_trajectory = std::make_shared<std::vector<Point>>(request->trajectory);

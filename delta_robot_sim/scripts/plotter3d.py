@@ -12,7 +12,7 @@ class DeltaEEPlotter(Node):
     def __init__(self):
         super().__init__("delta_ee_plotter")
 
-        self.declare_parameter("marker_frame", "delta_robot/frame")
+        self.declare_parameter("marker_frame", "delta_robot/world_link")
         self.declare_parameter("publish_rate_hz", 15.0)
         self.declare_parameter("max_points", 250)
         self.declare_parameter("sim_child_frame", "delta_robot/end_effector_pin")

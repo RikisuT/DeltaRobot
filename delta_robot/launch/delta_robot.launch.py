@@ -59,12 +59,12 @@ def generate_launch_description():
                 name="delta_motor_control",
                 output="screen",
             ),
-            Node(
-                package="delta_robot",
-                executable="range_scanner",
-                name="range_scanner",
-                output="screen",
-            ),
+            # Node(
+            #     package="delta_robot",
+            #     executable="range_scanner",
+            #     name="range_scanner",
+            #     output="screen",
+            # ),
             Node(
                 package="delta_robot",
                 executable="delta_trajectory_generator",

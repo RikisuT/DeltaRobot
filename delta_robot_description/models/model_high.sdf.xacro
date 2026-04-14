@@ -630,7 +630,7 @@
         </link>
         <link name="end_effector_pin">
             <self_collide>false</self_collide>
-            <pose relative_to="bevel_gear_ee">0 -0.012 0 ${pi/2} -0.0829 0   </pose>
+            <pose relative_to="bevel_gear_ee">0 -0.012 0 ${pi/2} ${pi/2+0.0829} ${pi} </pose>
         </link>
         <!-- Virtual pivot constraints ─-->
         <xacro:virtual_pivot_link n="1" relative_to="pivot_arm_4"/>
