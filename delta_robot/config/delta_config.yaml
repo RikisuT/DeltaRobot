@@ -16,6 +16,8 @@ motion_planner:
     commanded_tf_child_frame: delta_robot/commanded_end_effector_pin
     calculated_fk_tf_parent_frame: delta_robot/world_link
     calculated_fk_tf_child_frame: delta_robot/calculated_fk_end_effector_pin
+    actual_fk_tf_parent_frame: delta_robot/world_link
+    actual_fk_tf_child_frame: delta_robot/actual_fk_end_effector_pin
     ee_to_tilt_axis_offset_m: -0.027625
     tilt_axis_to_tool_tip_offset_m: -0.0225
     tool_tip_to_object_center_offset_m: 0.0

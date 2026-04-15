@@ -116,6 +116,8 @@ class DeltaMotorControl(Node):
         self.bin_seq = 1
         self.latest_motor_positions = {sid: int(UP_POS) for sid in ALL_MOTOR_IDS}
         self.latest_motor_velocities = {sid: 0 for sid in ALL_MOTOR_IDS}
+        # Track last published positions to retain state when feedback is missing
+        self.last_published_motor_positions = [int(UP_POS)] * len(ALL_MOTOR_IDS)
 
         self._initialize_hardware()
 
@@ -568,7 +570,8 @@ class DeltaMotorControl(Node):
             self.hardware_available = False
             return
 
-        motor_positions = [int(UP_POS)] * len(ALL_MOTOR_IDS)
+        # Initialize with last published positions to retain state when feedback is missing
+        motor_positions = list(self.last_published_motor_positions)
         motor_velocities = [0] * len(ALL_MOTOR_IDS)
         for st_id in self.visible_motor_ids:
             pos = self.latest_motor_positions.get(st_id, int(UP_POS))
@@ -618,6 +621,9 @@ class DeltaMotorControl(Node):
         self.motor_positions_pub.publish(pos_msg)
         if self.motor_velocities_pub is not None and vel_msg is not None:
             self.motor_velocities_pub.publish(vel_msg)
+
+        # Update last published positions to retain state when feedback temporarily missing
+        self.last_published_motor_positions = list(motor_positions)
 
         # Publish to /servo/actual for plotter
         actual_msg = Float32MultiArray()

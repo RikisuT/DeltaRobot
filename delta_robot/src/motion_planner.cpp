@@ -83,6 +83,10 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   this->calculated_fk_tf_parent_frame = this->get_parameter("calculated_fk_tf_parent_frame").as_string();
   this->declare_parameter<std::string>("calculated_fk_tf_child_frame", "delta_robot/calculated_fk_end_effector_pin");
   this->calculated_fk_tf_child_frame = this->get_parameter("calculated_fk_tf_child_frame").as_string();
+  this->declare_parameter<std::string>("actual_fk_tf_parent_frame", "world_link");
+  this->actual_fk_tf_parent_frame = this->get_parameter("actual_fk_tf_parent_frame").as_string();
+  this->declare_parameter<std::string>("actual_fk_tf_child_frame", "delta_robot/actual_fk_end_effector_pin");
+  this->actual_fk_tf_child_frame = this->get_parameter("actual_fk_tf_child_frame").as_string();
   this->declare_parameter("ee_to_tilt_axis_offset_m", 0.0);
   this->ee_to_tilt_axis_offset_m = this->get_parameter("ee_to_tilt_axis_offset_m").as_double();
   this->declare_parameter("tilt_axis_to_tool_tip_offset_m", 0.033);
@@ -111,6 +115,7 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile());
   this->commanded_tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(this);
   this->calculated_fk_tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(this);
+  this->actual_fk_tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(this);
 
   RCLCPP_INFO(
     get_logger(),
@@ -131,6 +136,12 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
     rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
     [this](const Float64MultiArray::SharedPtr msg) {
       this->liveOrientationCallback(msg);
+    });
+  this->motor_feedback_sub = this->create_subscription<DeltaJoints>(
+    "delta_motors/motor_position_feedback",
+    rclcpp::QoS(rclcpp::KeepLast(10)).reliable().durability_volatile(),
+    [this](const DeltaJoints::SharedPtr msg) {
+      this->publishActualFkTfFromJointFeedback(*msg);
     });
 
   // Defer service server + timer creation until kinematics services are available
@@ -623,6 +634,71 @@ void DeltaMotionPlanner::publishCalculatedFkTfFromJointCommand(
 
       const Point tool_point = this->convertWristToToolPoint(response->solution, tilt_rad, spin_rad);
       this->publishCalculatedFkTf(tool_point, tilt_rad, spin_rad);
+    });
+  (void)future_result;
+}
+
+void DeltaMotionPlanner::publishActualFkTf(const Point& point_mm, double tilt_rad, double spin_rad) {
+  this->publishTfStream(
+    this->actual_fk_tf_broadcaster.get(),
+    this->actual_fk_tf_parent_frame,
+    this->actual_fk_tf_child_frame,
+    point_mm,
+    tilt_rad,
+    spin_rad);
+}
+
+void DeltaMotionPlanner::publishActualFkTfFromJointFeedback(const DeltaJoints& joints) {
+  if (!this->delta_fk_client || !this->delta_fk_client->service_is_ready()) {
+    return;
+  }
+  if (!std::isfinite(joints.theta1) || !std::isfinite(joints.theta2) || !std::isfinite(joints.theta3)) {
+    return;
+  }
+
+  // Threshold for zeroing out very small angles (noise elimination)
+  const double ANGLE_NOISE_THRESHOLD = 1e-4;
+
+  // Create a copy of joints and zero out very small angles to avoid numerical noise
+  DeltaJoints cleaned_joints = joints;
+  if (std::abs(cleaned_joints.theta1) < ANGLE_NOISE_THRESHOLD) {
+    cleaned_joints.theta1 = 0.0;
+  }
+  if (std::abs(cleaned_joints.theta2) < ANGLE_NOISE_THRESHOLD) {
+    cleaned_joints.theta2 = 0.0;
+  }
+  if (std::abs(cleaned_joints.theta3) < ANGLE_NOISE_THRESHOLD) {
+    cleaned_joints.theta3 = 0.0;
+  }
+  if (std::abs(cleaned_joints.theta4) < ANGLE_NOISE_THRESHOLD) {
+    cleaned_joints.theta4 = 0.0;
+  }
+  if (std::abs(cleaned_joints.theta5) < ANGLE_NOISE_THRESHOLD) {
+    cleaned_joints.theta5 = 0.0;
+  }
+
+  // Differential inverse mapping from feedback joints:
+  // theta4 = tilt + 2*spin, theta5 = 2*spin - tilt
+  double tilt_rad = 0.0;
+  double spin_rad = 0.0;
+  if (std::isfinite(cleaned_joints.theta4) && std::isfinite(cleaned_joints.theta5)) {
+    tilt_rad = 0.5 * (cleaned_joints.theta4 - cleaned_joints.theta5);
+    spin_rad = 0.25 * (cleaned_joints.theta4 + cleaned_joints.theta5);
+  }
+
+  auto fk_request = std::make_shared<DeltaFK::Request>();
+  fk_request->joint_angles = cleaned_joints;
+
+  auto future_result = this->delta_fk_client->async_send_request(
+    fk_request,
+    [this, tilt_rad, spin_rad](ServiceResponseFuture<DeltaFK> future) {
+      auto response = future.get();
+      if (!response->success) {
+        return;
+      }
+
+      const Point tool_point = this->convertWristToToolPoint(response->solution, tilt_rad, spin_rad);
+      this->publishActualFkTf(tool_point, tilt_rad, spin_rad);
     });
   (void)future_result;
 }

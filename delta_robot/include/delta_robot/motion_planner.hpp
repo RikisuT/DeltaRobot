@@ -92,6 +92,8 @@ private:
   std::string commanded_tf_child_frame;
   std::string calculated_fk_tf_parent_frame;
   std::string calculated_fk_tf_child_frame;
+  std::string actual_fk_tf_parent_frame;
+  std::string actual_fk_tf_child_frame;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameters_callback_handle;
 
@@ -106,8 +108,10 @@ private:
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_pub;
   rclcpp::Subscription<Point>::SharedPtr live_target_sub;
   rclcpp::Subscription<Float64MultiArray>::SharedPtr live_orientation_sub;
+  rclcpp::Subscription<DeltaJoints>::SharedPtr motor_feedback_sub;
   std::unique_ptr<tf2_ros::TransformBroadcaster> commanded_tf_broadcaster;
   std::unique_ptr<tf2_ros::TransformBroadcaster> calculated_fk_tf_broadcaster;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> actual_fk_tf_broadcaster;
 
   // Servers
   rclcpp::Service<PlayDemoTraj>::SharedPtr demo_traj_server;
@@ -152,6 +156,8 @@ private:
   void publishCommandedTargetTf(const Point& point_mm, double tilt_rad, double spin_rad);
   void publishCalculatedFkTf(const Point& point_mm, double tilt_rad, double spin_rad);
   void publishCalculatedFkTfFromJointCommand(const DeltaJoints& joints, double tilt_rad, double spin_rad);
+  void publishActualFkTf(const Point& point_mm, double tilt_rad, double spin_rad);
+  void publishActualFkTfFromJointFeedback(const DeltaJoints& joints);
   Point convertWristToToolPoint(const Point& wrist_point_mm, double tilt_rad, double spin_rad);
   rcl_interfaces::msg::SetParametersResult handleParameterUpdate(const std::vector<rclcpp::Parameter>& parameters);
   

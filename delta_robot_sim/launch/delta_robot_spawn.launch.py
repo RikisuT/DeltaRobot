@@ -201,6 +201,7 @@ def generate_launch_description():
                         "sim_child_frame": "delta_robot/end_effector_pin",
                         "commanded_child_frame": "delta_robot/commanded_end_effector_pin",
                         "calculated_fk_child_frame": "delta_robot/calculated_fk_end_effector_pin",
+                        "actual_fk_child_frame": "delta_robot/actual_fk_end_effector_pin",
                     }
                 ],
             )
