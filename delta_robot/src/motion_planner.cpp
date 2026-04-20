@@ -982,7 +982,7 @@ std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
   const int num_points = 300;
   std::vector<Point> trajectory;
 
-  const float center = -180.0;
+  const float center = -380.0;
   const float amplitude = 75.0;
   const int cycles = 5;
 
@@ -1001,7 +1001,7 @@ std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
 std::vector<Point> DeltaMotionPlanner::pringleTrajectory() {
   // Circle Trajectory in XY plane while Z coordinate goes through 2 cycles of a sine wave
   const int num_points = 200;
-  const float circle_center_z = -180.0;
+  const float circle_center_z = -380.0;
   const float amplitude = 25.0;
 
   std::vector<float> t(num_points);
@@ -1040,7 +1040,7 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
   const float x_end = 60.0;
   const float y_start = 0.0;
   const float y_end = 60.0;
-  const float z_start = -180.0;
+  const float z_start = -380.0;
   const float z_end = -240.0;
   const int num_points = 25;
 
@@ -1107,7 +1107,7 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
 std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
   // Circle Trajectory in XY plane while Z coordinate remains constant
   const int num_points = 200;
-  const float center_z = -180.0;
+  const float center_z = -380.0;
   const float radius = 40.0;
 
   std::vector<float> t(num_points);

@@ -4,6 +4,9 @@
 import os
 import sys
 import math
+import threading
+import time
+import json
 from dataclasses import dataclass
 
 import rclpy
@@ -36,12 +39,22 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QGraphicsDropShadowEffect,
+    QTextEdit,
+    QSpinBox,
+    QListWidget,
+    QListWidgetItem,
 )
 from geometry_msgs.msg import Point
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, UInt8MultiArray, String
 
-from deltarobot_interfaces.srv import MotionDemo, MoveToPoint, MoveToPose, PlayDemoTrajectory, SetMotionMode
+from deltarobot_interfaces.srv import (
+    MotionDemo,
+    MoveToPoint,
+    MoveToPose,
+    PlayDemoTrajectory,
+    SetMotionMode,
+)
 from deltarobot_interfaces.msg import DeltaJoints
 
 
@@ -118,7 +131,9 @@ class MotorAnglesWindow(QDialog):
 
         layout.addLayout(grid)
 
-        self.status_label = QLabel("Listening to delta_motors/motor_position_feedback...")
+        self.status_label = QLabel(
+            "Listening to delta_motors/motor_position_feedback..."
+        )
         self.status_label.setObjectName("feedbackLabel")
         layout.addWidget(self.status_label)
 
@@ -156,50 +171,102 @@ class MotorAnglesWindow(QDialog):
 class DeltaGuiNode(Node):
     def __init__(self):
         super().__init__("delta_robot_gui")
-        self.declare_parameter("move_to_point_service", "delta_motion_planner/move_to_point")
-        self.declare_parameter("move_to_pose_service", "delta_motion_planner/move_to_pose")
-        self.declare_parameter("set_motion_mode_service", "delta_motion_planner/set_motion_mode")
+        self.declare_parameter(
+            "move_to_point_service", "delta_motion_planner/move_to_point"
+        )
+        self.declare_parameter(
+            "move_to_pose_service", "delta_motion_planner/move_to_pose"
+        )
+        self.declare_parameter(
+            "set_motion_mode_service", "delta_motion_planner/set_motion_mode"
+        )
         self.declare_parameter("live_target_topic", "delta_motion_planner/live_target")
-        self.declare_parameter("live_orientation_topic", "delta_motion_planner/live_orientation")
+        self.declare_parameter(
+            "live_orientation_topic", "delta_motion_planner/live_orientation"
+        )
         self.declare_parameter("motion_planner_node_name", "motion_planner")
-        self.declare_parameter("play_demo_trajectory_service", "delta_motion_planner/play_demo_trajectory")
-        self.declare_parameter("motion_demo_service", "delta_motion_planner/motion_demo")
+        self.declare_parameter(
+            "play_demo_trajectory_service", "delta_motion_planner/play_demo_trajectory"
+        )
+        self.declare_parameter(
+            "motion_demo_service", "delta_motion_planner/motion_demo"
+        )
         self.move_to_point_service = (
-            self.get_parameter("move_to_point_service").get_parameter_value().string_value
+            self.get_parameter("move_to_point_service")
+            .get_parameter_value()
+            .string_value
         )
         self.move_to_pose_service = (
-            self.get_parameter("move_to_pose_service").get_parameter_value().string_value
+            self.get_parameter("move_to_pose_service")
+            .get_parameter_value()
+            .string_value
         )
         self.set_motion_mode_service = (
-            self.get_parameter("set_motion_mode_service").get_parameter_value().string_value
+            self.get_parameter("set_motion_mode_service")
+            .get_parameter_value()
+            .string_value
         )
         self.live_target_topic = (
             self.get_parameter("live_target_topic").get_parameter_value().string_value
         )
         self.live_orientation_topic = (
-            self.get_parameter("live_orientation_topic").get_parameter_value().string_value
+            self.get_parameter("live_orientation_topic")
+            .get_parameter_value()
+            .string_value
         )
         self.motion_planner_node_name = (
-            self.get_parameter("motion_planner_node_name").get_parameter_value().string_value
+            self.get_parameter("motion_planner_node_name")
+            .get_parameter_value()
+            .string_value
         )
         self.play_demo_trajectory_service = (
-            self.get_parameter("play_demo_trajectory_service").get_parameter_value().string_value
+            self.get_parameter("play_demo_trajectory_service")
+            .get_parameter_value()
+            .string_value
         )
         self.motion_demo_service = (
             self.get_parameter("motion_demo_service").get_parameter_value().string_value
         )
         self.client = self.create_client(MoveToPoint, self.move_to_point_service)
         self.pose_client = self.create_client(MoveToPose, self.move_to_pose_service)
-        self.set_motion_mode_client = self.create_client(SetMotionMode, self.set_motion_mode_service)
-        self.live_target_publisher = self.create_publisher(Point, self.live_target_topic, 10)
+        self.set_motion_mode_client = self.create_client(
+            SetMotionMode, self.set_motion_mode_service
+        )
+        self.live_target_publisher = self.create_publisher(
+            Point, self.live_target_topic, 10
+        )
         self.live_orientation_publisher = self.create_publisher(
             Float64MultiArray, self.live_orientation_topic, 10
         )
-        self.motion_planner_param_client = AsyncParameterClient(self, self.motion_planner_node_name)
+        self.joint_command_publisher = self.create_publisher(
+            DeltaJoints, "delta_motors/set_joints", 10
+        )
+        self.torque_command_publisher = self.create_publisher(
+            UInt8MultiArray, "delta_motors/torque_command", 10
+        )
+        self.motor_feedback_subscription = self.create_subscription(
+            DeltaJoints,
+            "delta_motors/motor_position_feedback",
+            self._recording_motor_feedback_callback,
+            10,
+        )
+        self.motion_planner_param_client = AsyncParameterClient(
+            self, self.motion_planner_node_name
+        )
         self.play_demo_trajectory_client = self.create_client(
             PlayDemoTrajectory, self.play_demo_trajectory_service
         )
-        self.motion_demo_client = self.create_client(MotionDemo, self.motion_demo_service)
+        self.motion_demo_client = self.create_client(
+            MotionDemo, self.motion_demo_service
+        )
+
+        # Recording mode state
+        self.recording_enabled = False
+        self.is_recording = False
+        self.recorded_positions = []
+        self.recording_lock = threading.Lock()
+        self.latest_motor_positions = None
+        self.recording_gui_ref = None  # Reference to GUI for thread-safe callbacks
 
     def wait_for_service(self, timeout_sec: float = 5.0) -> bool:
         return self.client.wait_for_service(timeout_sec=timeout_sec)
@@ -211,22 +278,83 @@ class DeltaGuiNode(Node):
         return self.set_motion_mode_client.wait_for_service(timeout_sec=timeout_sec)
 
     def wait_for_demo_trajectory_service(self, timeout_sec: float = 5.0) -> bool:
-        return self.play_demo_trajectory_client.wait_for_service(timeout_sec=timeout_sec)
+        return self.play_demo_trajectory_client.wait_for_service(
+            timeout_sec=timeout_sec
+        )
 
     def wait_for_motion_demo_service(self, timeout_sec: float = 5.0) -> bool:
         return self.motion_demo_client.wait_for_service(timeout_sec=timeout_sec)
 
+    def _recording_motor_feedback_callback(self, msg):
+        """Callback for motor feedback - records positions if recording is enabled."""
+        with self.recording_lock:
+            self.latest_motor_positions = {
+                1: msg.theta1,
+                2: msg.theta2,
+                3: msg.theta3,
+                4: msg.theta4,
+                5: msg.theta5,
+            }
+            if self.is_recording:
+                # Store raw position feedback (convert radians to approximate ticks for display)
+                tick_positions = [
+                    int((msg.theta1 * 2048 / 1.57) + 2048),
+                    int((msg.theta2 * 2048 / 1.57) + 2048),
+                    int((msg.theta3 * 2048 / 1.57) + 2048),
+                    int((msg.theta4 * 2048 / 1.57) + 2048),
+                    int((msg.theta5 * 2048 / 1.57) + 2048),
+                ]
+                self.recorded_positions.append(
+                    {
+                        "timestamp": time.time(),
+                        "radians": [
+                            msg.theta1,
+                            msg.theta2,
+                            msg.theta3,
+                            msg.theta4,
+                            msg.theta5,
+                        ],
+                        "ticks": tick_positions,
+                    }
+                )
+
+    def send_torque_command(self, motor_id: int, enable: int) -> str:
+        """Send TORQUE command to ESP32 board via motor control node.
+        Args:
+            motor_id: Motor ID (1-5)
+            enable: 1 for enable, 0 for disable
+        Returns:
+            Command string sent
+        """
+        try:
+            # Publish torque command [motor_id, enable]
+            msg = UInt8MultiArray()
+            msg.data = [motor_id, enable]
+            self.torque_command_publisher.publish(msg)
+            return f"TORQUE {motor_id} {enable}"
+        except Exception as e:
+            self.get_logger().error(f"Failed to send torque command: {str(e)}")
+            return None
+
     def wait_for_parameter_service(self, timeout_sec: float = 1.0) -> bool:
         if self.motion_planner_param_client.services_are_ready():
             return True
-        return self.motion_planner_param_client.wait_for_services(timeout_sec=timeout_sec)
+        return self.motion_planner_param_client.wait_for_services(
+            timeout_sec=timeout_sec
+        )
 
     def set_planner_orientation_config(
         self, object_center_offset_m: float, enable_axis_compensation: bool
     ):
         params = [
-            Parameter(name="tool_tip_to_object_center_offset_m", value=float(object_center_offset_m)),
-            Parameter(name="enable_tilt_axis_compensation", value=bool(enable_axis_compensation)),
+            Parameter(
+                name="tool_tip_to_object_center_offset_m",
+                value=float(object_center_offset_m),
+            ),
+            Parameter(
+                name="enable_tilt_axis_compensation",
+                value=bool(enable_axis_compensation),
+            ),
         ]
         return self.motion_planner_param_client.set_parameters(params)
 
@@ -258,7 +386,9 @@ class DeltaGuiNode(Node):
         return self.set_motion_mode_client.call_async(request)
 
     def publish_live_target(self, x_m: float, y_m: float, z_m: float):
-        self.live_target_publisher.publish(Point(x=x_m * 1000.0, y=y_m * 1000.0, z=z_m * 1000.0))
+        self.live_target_publisher.publish(
+            Point(x=x_m * 1000.0, y=y_m * 1000.0, z=z_m * 1000.0)
+        )
 
     def publish_live_orientation(self, tilt_rad: float, spin_rad: float):
         msg = Float64MultiArray()
@@ -283,7 +413,6 @@ class LabeledSlider(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 6, 16, 6)
-
 
         header = QHBoxLayout()
         self.label = QLabel(spec.label)
@@ -325,6 +454,12 @@ class DeltaRobotGui(QMainWindow):
             rclpy.init(args=None)
 
         self.node = DeltaGuiNode()
+        # Subscribe to motor init status messages (published by motor_control_node)
+        try:
+            self.node.create_subscription(String, "delta_motors/init_status", self._on_init_status_msg, 10)
+        except Exception:
+            # If subscription cannot be created now, ignore - ros_spin timer will pick it up when node ready
+            pass
         self.pending_future = None
         self.pending_mode_future = None
         self.pending_mode_target = 0
@@ -340,7 +475,7 @@ class DeltaRobotGui(QMainWindow):
         self.motor_angles_window = None
 
         self.setWindowTitle("Delta Robot Control Center")
-        self.setMinimumSize(800, 1080)
+        self.setMinimumSize(875, 1080)
         self.is_wayland = "wayland" in QGuiApplication.platformName().lower()
         self._drag_position = QPoint()
         self._drag_active = False
@@ -504,21 +639,37 @@ class DeltaRobotGui(QMainWindow):
         self.tabs.addTab(self._build_gcode_tab(), "G-code")
         self.tabs.addTab(self._build_json_tab(), "JSON Tasks")
         self.tabs.addTab(self._build_demo_tab(), "Demos")
+        self.tabs.addTab(self._build_recording_tab(), "Recording")
         self.tabs.addTab(self._build_console_tab(), "Console")
         shell_layout.addWidget(self.tabs)
 
         root.addWidget(shell)
 
     def eventFilter(self, obj, event):
-        if self.is_wayland and hasattr(self, "window_header") and obj is self.window_header:
-            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+        if (
+            self.is_wayland
+            and hasattr(self, "window_header")
+            and obj is self.window_header
+        ):
+            if (
+                event.type() == QEvent.MouseButtonPress
+                and event.button() == Qt.LeftButton
+            ):
                 window = self.windowHandle()
-                if window is not None and hasattr(window, "startSystemMove") and window.startSystemMove():
+                if (
+                    window is not None
+                    and hasattr(window, "startSystemMove")
+                    and window.startSystemMove()
+                ):
                     return True
                 self._drag_active = True
                 self._drag_position = event.globalPos() - self.frameGeometry().topLeft()
                 return True
-            if event.type() == QEvent.MouseMove and self._drag_active and event.buttons() & Qt.LeftButton:
+            if (
+                event.type() == QEvent.MouseMove
+                and self._drag_active
+                and event.buttons() & Qt.LeftButton
+            ):
                 self.move(event.globalPos() - self._drag_position)
                 return True
             if event.type() == QEvent.MouseButtonRelease:
@@ -543,7 +694,7 @@ class DeltaRobotGui(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(8)       
+        layout.setSpacing(8)
 
         help_box = QFrame()
         help_box.setObjectName("infoCard")
@@ -554,7 +705,7 @@ class DeltaRobotGui(QMainWindow):
         hint = QLabel("Recommended range: x/y around +/-0.10 m, z around -0.18 m.")
         hint.setObjectName("hintLabel")
         help_layout.addWidget(hint)
-        
+
         mode_control_row = QHBoxLayout()
         mode_label = QLabel("Control Mode:")
         mode_label.setStyleSheet("font-weight: 600;")
@@ -566,8 +717,10 @@ class DeltaRobotGui(QMainWindow):
         mode_control_row.addWidget(self.mode_button)
         mode_control_row.addStretch(1)
         help_layout.addLayout(mode_control_row)
-        
-        self.live_move_checkbox = QCheckBox("Live move while sliders change (LIVE mode only)")
+
+        self.live_move_checkbox = QCheckBox(
+            "Live move while sliders change (LIVE mode only)"
+        )
         self.live_move_checkbox.setChecked(True)
         self.live_move_checkbox.toggled.connect(self._on_live_mode_changed)
         self.live_move_checkbox.setStyleSheet("padding: 4px 0;")
@@ -583,7 +736,7 @@ class DeltaRobotGui(QMainWindow):
 
         self.x_slider = LabeledSlider(SliderSpec("X", -120, 120, 0))
         self.y_slider = LabeledSlider(SliderSpec("Y", -120, 120, 0))
-        self.z_slider = LabeledSlider(SliderSpec("Z", -350, -140, -199))
+        self.z_slider = LabeledSlider(SliderSpec("Z", -450, -300, -375))
         self.tilt_slider = LabeledSlider(SliderSpec("Tilt", -90, 90, 0))
         self.spin_slider = LabeledSlider(SliderSpec("Spin", -180, 180, 0))
 
@@ -620,7 +773,9 @@ class DeltaRobotGui(QMainWindow):
         self.object_center_offset_spin.setToolTip(
             "Offset from tool tip to object center (e.g., half object height for axial rotation)."
         )
-        self.object_center_offset_spin.valueChanged.connect(self._on_orientation_setting_changed)
+        self.object_center_offset_spin.valueChanged.connect(
+            self._on_orientation_setting_changed
+        )
 
         self.axis_comp_checkbox = QCheckBox("Enable tilt X/Z offset (tool + object)")
         self.axis_comp_checkbox.setChecked(True)
@@ -630,7 +785,9 @@ class DeltaRobotGui(QMainWindow):
         self.spin_enable_checkbox.setChecked(True)
         self.spin_enable_checkbox.toggled.connect(self._on_orientation_enabled_toggled)
 
-        orientation_layout.addRow("Object center offset:", self.object_center_offset_spin)
+        orientation_layout.addRow(
+            "Object center offset:", self.object_center_offset_spin
+        )
         orientation_layout.addRow("", self.axis_comp_checkbox)
         orientation_layout.addRow("", self.spin_enable_checkbox)
         layout.addWidget(orientation_box)
@@ -639,7 +796,9 @@ class DeltaRobotGui(QMainWindow):
             "Target: x=0.000 m, y=0.000 m, z=-0.180 m, tilt=0.0 deg, spin=0.0 deg, obj=0.000 m"
         )
         self.target_preview.setObjectName("previewLabel")
-        self.target_preview.setStyleSheet("color: #89bdf1; font-size: 12px; padding: 6px 0;")
+        self.target_preview.setStyleSheet(
+            "color: #89bdf1; font-size: 12px; padding: 6px 0;"
+        )
         layout.addWidget(self.target_preview)
 
         button_row = QHBoxLayout()
@@ -683,7 +842,9 @@ class DeltaRobotGui(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(14)
 
-        description = QLabel("Pick a G-code file and run it through delta_robot/gcode_parser.py.")
+        description = QLabel(
+            "Pick a G-code file and run it through delta_robot/gcode_parser.py."
+        )
         description.setObjectName("hintLabel")
         description.setStyleSheet("padding: 8px 6px; color: #9aa9b9; font-size: 12px;")
         layout.addWidget(description)
@@ -693,7 +854,7 @@ class DeltaRobotGui(QMainWindow):
         file_layout = QHBoxLayout(file_box)
         file_layout.setContentsMargins(14, 18, 14, 14)
         file_layout.setSpacing(10)
-        
+
         self.gcode_path = QLineEdit()
         self.gcode_path.setPlaceholderText("Select a .gcode or .nc file")
         self.gcode_path.setMinimumHeight(36)
@@ -702,7 +863,7 @@ class DeltaRobotGui(QMainWindow):
         gcode_browse.setMaximumWidth(100)
         gcode_browse.setMinimumHeight(36)
         gcode_browse.clicked.connect(self._browse_gcode_file)
-        
+
         file_layout.addWidget(self.gcode_path)
         file_layout.addWidget(gcode_browse)
         layout.addWidget(file_box)
@@ -718,7 +879,7 @@ class DeltaRobotGui(QMainWindow):
         self.gcode_loop_checkbox.setChecked(False)
         self.gcode_loop_checkbox.toggled.connect(self._on_loop_toggled)
         settings_layout.addWidget(self.gcode_loop_checkbox)
-        
+
         # Units setting
         units_row = QHBoxLayout()
         units_row.setContentsMargins(0, 0, 0, 0)
@@ -734,7 +895,7 @@ class DeltaRobotGui(QMainWindow):
         units_row.addWidget(self.gcode_units)
         units_row.addStretch(1)
         settings_layout.addLayout(units_row)
-        
+
         # Motion rate setting
         rate_row = QHBoxLayout()
         rate_row.setContentsMargins(0, 0, 0, 0)
@@ -753,7 +914,7 @@ class DeltaRobotGui(QMainWindow):
         rate_row.addWidget(self.gcode_rate)
         rate_row.addStretch(1)
         settings_layout.addLayout(rate_row)
-        
+
         layout.addWidget(settings_box)
         self._add_shadow(settings_box, blur=22, y_offset=5)
 
@@ -782,7 +943,9 @@ class DeltaRobotGui(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(14)
 
-        description = QLabel("Pick a JSON task list and run it through delta_robot/json_task_sequencer.py.")
+        description = QLabel(
+            "Pick a JSON task list and run it through delta_robot/json_task_sequencer.py."
+        )
         description.setObjectName("hintLabel")
         description.setStyleSheet("padding: 8px 6px; color: #9aa9b9; font-size: 12px;")
         layout.addWidget(description)
@@ -792,7 +955,7 @@ class DeltaRobotGui(QMainWindow):
         file_layout = QHBoxLayout(file_box)
         file_layout.setContentsMargins(14, 18, 14, 14)
         file_layout.setSpacing(10)
-        
+
         self.json_path = QLineEdit()
         self.json_path.setPlaceholderText("Select a task .json file")
         self.json_path.setMinimumHeight(36)
@@ -801,7 +964,7 @@ class DeltaRobotGui(QMainWindow):
         json_browse.setMaximumWidth(100)
         json_browse.setMinimumHeight(36)
         json_browse.clicked.connect(self._browse_json_file)
-        
+
         file_layout.addWidget(self.json_path)
         file_layout.addWidget(json_browse)
         layout.addWidget(file_box)
@@ -817,7 +980,7 @@ class DeltaRobotGui(QMainWindow):
         self.json_loop_checkbox.setChecked(False)
         self.json_loop_checkbox.toggled.connect(self._on_loop_toggled)
         settings_layout.addWidget(self.json_loop_checkbox)
-        
+
         # Units setting
         units_row = QHBoxLayout()
         units_row.setContentsMargins(0, 0, 0, 0)
@@ -833,7 +996,7 @@ class DeltaRobotGui(QMainWindow):
         units_row.addWidget(self.json_units)
         units_row.addStretch(1)
         settings_layout.addLayout(units_row)
-        
+
         # Motion rate setting
         rate_row = QHBoxLayout()
         rate_row.setContentsMargins(0, 0, 0, 0)
@@ -852,7 +1015,7 @@ class DeltaRobotGui(QMainWindow):
         rate_row.addWidget(self.json_rate)
         rate_row.addStretch(1)
         settings_layout.addLayout(rate_row)
-        
+
         layout.addWidget(settings_box)
         self._add_shadow(settings_box, blur=22, y_offset=5)
 
@@ -881,7 +1044,9 @@ class DeltaRobotGui(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(14)
 
-        description = QLabel("Start a single demo trajectory or run the planner's built-in demo loop.")
+        description = QLabel(
+            "Start a single demo trajectory or run the planner's built-in demo loop."
+        )
         description.setObjectName("hintLabel")
         description.setStyleSheet("padding: 8px 6px; color: #9aa9b9; font-size: 12px;")
         layout.addWidget(description)
@@ -904,7 +1069,9 @@ class DeltaRobotGui(QMainWindow):
         self.demo_run_button = QPushButton("Run Selected Demo")
         self.demo_run_button.setObjectName("primaryButton")
         self.demo_run_button.setMinimumHeight(36)
-        self.demo_run_button.clicked.connect(lambda: self._run_demo_trajectory(self.demo_selector.currentText()))
+        self.demo_run_button.clicked.connect(
+            lambda: self._run_demo_trajectory(self.demo_selector.currentText())
+        )
 
         selector_row.addWidget(selector_label)
         selector_row.addWidget(self.demo_selector)
@@ -912,7 +1079,9 @@ class DeltaRobotGui(QMainWindow):
         selector_row.addStretch(1)
         demo_layout.addLayout(selector_row)
 
-        self.demo_loop_checkbox = QCheckBox("Use auto demo loop instead of a single trajectory")
+        self.demo_loop_checkbox = QCheckBox(
+            "Use auto demo loop instead of a single trajectory"
+        )
         self.demo_loop_checkbox.setChecked(False)
         self.demo_loop_checkbox.toggled.connect(self._on_loop_toggled)
         demo_layout.addWidget(self.demo_loop_checkbox)
@@ -936,11 +1105,17 @@ class DeltaRobotGui(QMainWindow):
             button.setObjectName("secondaryButton")
             button.setMinimumHeight(32)
 
-        self.demo_circle_button.clicked.connect(lambda: self._run_demo_trajectory("circle"))
-        self.demo_pringle_button.clicked.connect(lambda: self._run_demo_trajectory("pringle"))
+        self.demo_circle_button.clicked.connect(
+            lambda: self._run_demo_trajectory("circle")
+        )
+        self.demo_pringle_button.clicked.connect(
+            lambda: self._run_demo_trajectory("pringle")
+        )
         self.demo_axes_button.clicked.connect(lambda: self._run_demo_trajectory("axes"))
         self.demo_scan_button.clicked.connect(lambda: self._run_demo_trajectory("scan"))
-        self.demo_up_down_button.clicked.connect(lambda: self._run_demo_trajectory("up_down"))
+        self.demo_up_down_button.clicked.connect(
+            lambda: self._run_demo_trajectory("up_down")
+        )
 
         demo_grid.addWidget(self.demo_circle_button, 0, 0)
         demo_grid.addWidget(self.demo_pringle_button, 0, 1)
@@ -971,6 +1146,437 @@ class DeltaRobotGui(QMainWindow):
 
         layout.addItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
         return tab
+
+    def _build_recording_tab(self) -> QWidget:
+        """Build the recording mode tab for passive demo recording and playback."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(14)
+
+        description = QLabel(
+            "Record motor positions by moving the robot with torque off, then playback."
+        )
+        description.setObjectName("hintLabel")
+        description.setStyleSheet("padding: 8px 6px; color: #9aa9b9; font-size: 12px;")
+        layout.addWidget(description)
+
+        # Torque control box
+        torque_box = QGroupBox("Torque Control")
+        torque_box.setObjectName("cardBox")
+        torque_layout = QHBoxLayout(torque_box)
+        torque_layout.setContentsMargins(14, 20, 14, 14)
+        torque_layout.setSpacing(10)
+
+        self.torque_off_button = QPushButton("Torque OFF (Record Mode)")
+        self.torque_off_button.setObjectName("primaryButton")
+        self.torque_off_button.setMinimumHeight(40)
+        self.torque_off_button.clicked.connect(self._on_torque_off_clicked)
+
+        self.torque_on_button = QPushButton("Torque ON (Normal Mode)")
+        self.torque_on_button.setObjectName("secondaryButton")
+        self.torque_on_button.setMinimumHeight(40)
+        self.torque_on_button.clicked.connect(self._on_torque_on_clicked)
+
+        torque_layout.addWidget(self.torque_off_button)
+        torque_layout.addWidget(self.torque_on_button)
+        torque_layout.addStretch(1)
+        layout.addWidget(torque_box)
+
+        # Recording control box
+        record_box = QGroupBox("Recording")
+        record_box.setObjectName("cardBox")
+        record_layout = QVBoxLayout(record_box)
+        record_layout.setContentsMargins(14, 20, 14, 14)
+        record_layout.setSpacing(10)
+
+        control_row = QHBoxLayout()
+        control_row.setSpacing(10)
+
+        self.record_button = QPushButton("Start Recording")
+        self.record_button.setObjectName("primaryButton")
+        self.record_button.setMinimumHeight(40)
+        self.record_button.setEnabled(False)
+        self.record_button.clicked.connect(self._on_record_clicked)
+
+        self.stop_record_button = QPushButton("Stop Recording")
+        self.stop_record_button.setObjectName("secondaryButton")
+        self.stop_record_button.setMinimumHeight(40)
+        self.stop_record_button.setEnabled(False)
+        self.stop_record_button.clicked.connect(self._on_stop_record_clicked)
+
+        self.clear_recording_button = QPushButton("Clear Recording")
+        self.clear_recording_button.setObjectName("secondaryButton")
+        self.clear_recording_button.setMinimumHeight(40)
+        self.clear_recording_button.clicked.connect(self._on_clear_recording_clicked)
+
+        control_row.addWidget(self.record_button)
+        control_row.addWidget(self.stop_record_button)
+        control_row.addWidget(self.clear_recording_button)
+        control_row.addStretch(1)
+        record_layout.addLayout(control_row)
+
+        # Recording status
+        status_row = QHBoxLayout()
+        status_row.setSpacing(10)
+        status_row.addWidget(QLabel("Recording Status:"))
+        self.recording_status_label = QLabel("Idle")
+        self.recording_status_label.setStyleSheet("font-weight: 600; color: #7a8fa3;")
+        status_row.addWidget(self.recording_status_label)
+        status_row.addStretch(1)
+        record_layout.addLayout(status_row)
+
+        layout.addWidget(record_box)
+
+        # Display mode box
+        display_box = QGroupBox("Display Mode")
+        display_box.setObjectName("cardBox")
+        display_layout = QHBoxLayout(display_box)
+        display_layout.setContentsMargins(14, 20, 14, 14)
+        display_layout.setSpacing(10)
+
+        display_layout.addWidget(QLabel("Show recorded positions as:"))
+        self.display_mode_combo = QComboBox()
+        self.display_mode_combo.addItems(
+            ["Motor Ticks (Raw)", "Joint Angles (Radians)"]
+        )
+        self.display_mode_combo.setMinimumHeight(36)
+        self.display_mode_combo.setMaximumWidth(220)
+        self.display_mode_combo.currentTextChanged.connect(
+            self._on_display_mode_changed
+        )
+        display_layout.addWidget(self.display_mode_combo)
+        display_layout.addStretch(1)
+        layout.addWidget(display_box)
+
+        # Recorded data display
+        data_box = QGroupBox("Recorded Data")
+        data_box.setObjectName("cardBox")
+        data_layout = QVBoxLayout(data_box)
+        data_layout.setContentsMargins(14, 20, 14, 14)
+        data_layout.setSpacing(10)
+
+        self.recording_data_list = QPlainTextEdit()
+        self.recording_data_list.setReadOnly(True)
+        self.recording_data_list.setMaximumHeight(200)
+        self.recording_data_list.setStyleSheet(
+            "background-color: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 9px;"
+        )
+        data_layout.addWidget(self.recording_data_list)
+
+        layout.addWidget(data_box)
+
+        # Playback control box
+        playback_box = QGroupBox("Playback")
+        playback_box.setObjectName("cardBox")
+        playback_layout = QVBoxLayout(playback_box)
+        playback_layout.setContentsMargins(14, 20, 14, 14)
+        playback_layout.setSpacing(10)
+
+        playback_control_row = QHBoxLayout()
+        playback_control_row.setSpacing(10)
+
+        self.playback_button = QPushButton("Play Recorded Trajectory")
+        self.playback_button.setObjectName("primaryButton")
+        self.playback_button.setMinimumHeight(40)
+        self.playback_button.setEnabled(False)
+        self.playback_button.clicked.connect(self._on_playback_clicked)
+
+        playback_control_row.addWidget(self.playback_button)
+        playback_control_row.addStretch(1)
+        playback_layout.addLayout(playback_control_row)
+
+        # Playback speed control
+        speed_row = QHBoxLayout()
+        speed_row.setSpacing(10)
+        speed_row.addWidget(QLabel("Playback speed (ms between points):"))
+        self.playback_speed_spinbox = QSpinBox()
+        self.playback_speed_spinbox.setMinimum(50)
+        self.playback_speed_spinbox.setMaximum(10000)
+        self.playback_speed_spinbox.setValue(100)
+        self.playback_speed_spinbox.setMaximumWidth(100)
+        speed_row.addWidget(self.playback_speed_spinbox)
+        # Playback smoothing control (EMA alpha 0..1)
+        speed_row.addWidget(QLabel("Smoothing α (0.00-1.00):"))
+        self.playback_smoothing_spinbox = QDoubleSpinBox()
+        self.playback_smoothing_spinbox.setDecimals(2)
+        self.playback_smoothing_spinbox.setRange(0.0, 1.0)
+        self.playback_smoothing_spinbox.setSingleStep(0.05)
+        self.playback_smoothing_spinbox.setValue(0.6)
+        self.playback_smoothing_spinbox.setMaximumWidth(100)
+        speed_row.addWidget(self.playback_smoothing_spinbox)
+        speed_row.addStretch(1)
+        playback_layout.addLayout(speed_row)
+
+        # Save/Load buttons
+        file_row = QHBoxLayout()
+        file_row.setSpacing(10)
+
+        self.save_recording_button = QPushButton("Save to File")
+        self.save_recording_button.setObjectName("secondaryButton")
+        self.save_recording_button.setMinimumHeight(36)
+        self.save_recording_button.setEnabled(False)
+        self.save_recording_button.clicked.connect(self._on_save_recording_clicked)
+
+        self.load_recording_button = QPushButton("Load from File")
+        self.load_recording_button.setObjectName("secondaryButton")
+        self.load_recording_button.setMinimumHeight(36)
+        self.load_recording_button.clicked.connect(self._on_load_recording_clicked)
+
+        file_row.addWidget(self.save_recording_button)
+        file_row.addWidget(self.load_recording_button)
+        file_row.addStretch(1)
+        playback_layout.addLayout(file_row)
+
+        layout.addWidget(playback_box)
+        layout.addItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        return tab
+
+    def _on_torque_off_clicked(self):
+        """Turn torque off for all motors (passive mode)."""
+        MOTOR_IDS = [1, 2, 3, 4, 5]
+
+        # Send TORQUE commands for each motor
+        commands_sent = []
+        try:
+            for motor_id in MOTOR_IDS:
+                cmd_result = self.node.send_torque_command(motor_id, 0)
+                if cmd_result:
+                    commands_sent.append(f"Motor {motor_id}: OFF")
+                time.sleep(0.1)  # Small delay between commands
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Error", f"Failed to send torque commands: {str(e)}"
+            )
+            return
+
+        self.node.recording_enabled = True
+        self.torque_off_button.setEnabled(False)
+        self.torque_on_button.setEnabled(True)
+        self.record_button.setEnabled(True)
+
+        msg_text = (
+            "All motors are now in passive mode (torque OFF).\nYou can manually move the robot to record positions.\n\n"
+            + "\n".join(commands_sent)
+        )
+        QMessageBox.information(self, "Torque OFF", msg_text)
+
+    def _on_torque_on_clicked(self):
+        """Turn torque on for all motors (normal mode)."""
+        MOTOR_IDS = [1, 2, 3, 4, 5]
+
+        # Send TORQUE commands for each motor
+        commands_sent = []
+        try:
+            for motor_id in MOTOR_IDS:
+                cmd_result = self.node.send_torque_command(motor_id, 1)
+                if cmd_result:
+                    commands_sent.append(f"Motor {motor_id}: ON")
+                time.sleep(0.1)  # Small delay between commands
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Error", f"Failed to send torque commands: {str(e)}"
+            )
+            return
+
+        self.node.recording_enabled = False
+        self.node.is_recording = False
+        self.torque_off_button.setEnabled(True)
+        self.torque_on_button.setEnabled(False)
+        self.record_button.setEnabled(False)
+        self.stop_record_button.setEnabled(False)
+        self.recording_status_label.setText("Idle - Torque ON")
+        self.recording_status_label.setStyleSheet("font-weight: 600; color: #7a8fa3;")
+
+        msg_text = "All motors are now in normal mode (torque ON).\n\n" + "\n".join(
+            commands_sent
+        )
+        QMessageBox.information(self, "Torque ON", msg_text)
+
+    def _on_record_clicked(self):
+        """Start recording motor positions."""
+        if not self.node.recording_enabled:
+            QMessageBox.warning(
+                self, "Error", "Turn torque OFF first to enable recording mode."
+            )
+            return
+
+        self.node.is_recording = True
+        self.node.recorded_positions = []
+        self.record_button.setEnabled(False)
+        self.stop_record_button.setEnabled(True)
+        self.torque_off_button.setEnabled(False)
+        self.recording_status_label.setText("RECORDING...")
+        self.recording_status_label.setStyleSheet("font-weight: 600; color: #ff6b6b;")
+        self.recording_data_list.clear()
+        self.recording_data_list.appendPlainText("Recording started...")
+
+    def _on_stop_record_clicked(self):
+        """Stop recording motor positions."""
+        self.node.is_recording = False
+        self.record_button.setEnabled(True)
+        self.stop_record_button.setEnabled(False)
+        self.torque_off_button.setEnabled(True)
+        self.recording_status_label.setText(
+            f"Stopped - {len(self.node.recorded_positions)} points recorded"
+        )
+        self.recording_status_label.setStyleSheet("font-weight: 600; color: #51cf66;")
+        self.save_recording_button.setEnabled(len(self.node.recorded_positions) > 0)
+        self.playback_button.setEnabled(len(self.node.recorded_positions) > 0)
+        self._update_recording_display()
+
+    def _on_clear_recording_clicked(self):
+        """Clear the recorded positions."""
+        self.node.recorded_positions = []
+        self.recording_status_label.setText("Cleared")
+        self.recording_status_label.setStyleSheet("font-weight: 600; color: #7a8fa3;")
+        self.recording_data_list.clear()
+        self.save_recording_button.setEnabled(False)
+        self.playback_button.setEnabled(False)
+
+    def _on_display_mode_changed(self):
+        """Update recording display when display mode changes."""
+        self._update_recording_display()
+
+    def _update_recording_display(self):
+        """Update the recording data display."""
+        self.recording_data_list.clear()
+        if not self.node.recorded_positions:
+            return
+
+        is_radians = self.display_mode_combo.currentIndex() == 1
+        for i, record in enumerate(self.node.recorded_positions):
+            if is_radians:
+                angles = record["radians"]
+                line = f"[{i:3d}] θ1={angles[0]:+.4f} θ2={angles[1]:+.4f} θ3={angles[2]:+.4f} θ4={angles[3]:+.4f} θ5={angles[4]:+.4f}"
+            else:
+                ticks = record["ticks"]
+                line = f"[{i:3d}] T1={ticks[0]:4d} T2={ticks[1]:4d} T3={ticks[2]:4d} T4={ticks[3]:4d} T5={ticks[4]:4d}"
+            self.recording_data_list.appendPlainText(line)
+
+    def _on_playback_clicked(self):
+        """Playback the recorded trajectory."""
+        if not self.node.recorded_positions:
+            QMessageBox.warning(self, "Error", "No recording to playback.")
+            return
+
+        if not self.node.recording_enabled:
+            QMessageBox.warning(
+                self, "Error", "Turn torque OFF first (to unlock motors for playback)."
+            )
+            return
+
+        speed_ms = self.playback_speed_spinbox.value()
+        smoothing_alpha = float(self.playback_smoothing_spinbox.value()) if hasattr(self, 'playback_smoothing_spinbox') else 0.0
+        thread = threading.Thread(target=self._playback_thread, args=(speed_ms, smoothing_alpha))
+        thread.daemon = True
+        thread.start()
+
+    def _playback_thread(self, speed_ms, smoothing_alpha=0.0):
+        """Playback recorded trajectory in a separate thread with spline interpolation for smooth motion.
+        Applies an exponential moving average (EMA) to the interpolated joint values for smoother playback.
+        Qt-safe."""
+        import numpy as np
+        from scipy.interpolate import CubicSpline
+        from PyQt5.QtCore import QTimer
+
+        # Disable button in main thread
+        QTimer.singleShot(0, lambda: self.playback_button.setEnabled(False))
+        try:
+            positions = self.node.recorded_positions
+            if len(positions) < 2:
+                return
+            t = np.arange(len(positions))
+            thetas = np.array([rec["radians"] for rec in positions])  # shape: (N, 5)
+            n_interp = 10  # number of interpolated points between each pair
+            t_interp = np.linspace(
+                0, len(positions) - 1, num=(len(positions) - 1) * n_interp + 1
+            )
+            splines = [CubicSpline(t, thetas[:, i]) for i in range(5)]
+            theta_interp = np.stack([spl(t_interp) for spl in splines], axis=1)
+
+            # EMA smoothing state (start at first interpolated sample)
+            ema = np.array(theta_interp[0], dtype=float)
+            alpha = float(smoothing_alpha)
+            if alpha < 0.0:
+                alpha = 0.0
+            if alpha > 1.0:
+                alpha = 1.0
+
+            for joint_vals in theta_interp:
+                arr = np.array(joint_vals, dtype=float)
+                if alpha > 0.0:
+                    smoothed = alpha * arr + (1.0 - alpha) * ema
+                else:
+                    smoothed = arr
+                ema = smoothed
+
+                msg = DeltaJoints()
+                msg.header.stamp = self.node.get_clock().now().to_msg()
+                msg.theta1 = float(smoothed[0])
+                msg.theta2 = float(smoothed[1])
+                msg.theta3 = float(smoothed[2])
+                msg.theta4 = float(smoothed[3])
+                msg.theta5 = float(smoothed[4])
+                self.node.joint_command_publisher.publish(msg)
+                time.sleep((speed_ms / n_interp) / 1000.0)
+        finally:
+            # Re-enable button in main thread
+            QTimer.singleShot(0, lambda: self.playback_button.setEnabled(True))
+
+    def _on_save_recording_clicked(self):
+        """Save recorded trajectory to a JSON file."""
+        if not self.node.recorded_positions:
+            QMessageBox.warning(self, "Error", "No recording to save.")
+            return
+
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Save Recording", "", "JSON Files (*.json)"
+        )
+        if not filepath:
+            return
+
+        try:
+            data = {
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "num_points": len(self.node.recorded_positions),
+                "points": self.node.recorded_positions,
+            }
+            with open(filepath, "w") as f:
+                json.dump(data, f, indent=2)
+            QMessageBox.information(self, "Saved", f"Recording saved to:\n{filepath}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save:\n{str(e)}")
+
+    def _on_load_recording_clicked(self):
+        """Load recorded trajectory from a JSON file."""
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "Load Recording", "", "JSON Files (*.json)"
+        )
+        if not filepath:
+            return
+
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+
+            self.node.recorded_positions = data["points"]
+            self.recording_status_label.setText(
+                f"Loaded - {len(self.node.recorded_positions)} points"
+            )
+            self.recording_status_label.setStyleSheet(
+                "font-weight: 600; color: #51cf66;"
+            )
+            self.save_recording_button.setEnabled(True)
+            self.playback_button.setEnabled(True)
+            self._update_recording_display()
+            QMessageBox.information(
+                self,
+                "Loaded",
+                f"Loaded {len(self.node.recorded_positions)} recorded points.",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load:\n{str(e)}")
 
     def _build_console_tab(self) -> QWidget:
         tab = QWidget()
@@ -1312,6 +1918,13 @@ class DeltaRobotGui(QMainWindow):
         if rclpy.ok():
             rclpy.spin_once(self.node, timeout_sec=0.0)
 
+    def _on_init_status_msg(self, msg):
+        """ROS callback for initialization status messages from motor_control_node.
+        Schedule a GUI warning dialog on the main thread.
+        """
+        text = getattr(msg, "data", str(msg))
+        QTimer.singleShot(0, lambda: QMessageBox.warning(self, "Motor Init Warning", text))
+
     def _refresh_service_status(self):
         available = self.node.wait_for_service(timeout_sec=0.0)
         pose_available = self.node.wait_for_pose_service(timeout_sec=0.0)
@@ -1325,7 +1938,9 @@ class DeltaRobotGui(QMainWindow):
             )
             self.send_button.setEnabled(self.planner_mode == 0)
         else:
-            self.service_indicator.setText("Service: waiting for delta_motion_planner/move_to_point")
+            self.service_indicator.setText(
+                "Service: waiting for delta_motion_planner/move_to_point"
+            )
             self.service_indicator.setStyleSheet(
                 "color: #ffd7a8; background: rgba(159, 108, 29, 0.18); border: 1px solid rgba(159, 108, 29, 0.26);"
             )
@@ -1356,14 +1971,20 @@ class DeltaRobotGui(QMainWindow):
     def _on_loop_toggled(self, checked: bool):
         sender = self.sender()
         if sender is getattr(self, "gcode_loop_checkbox", None):
-            self.feedback_label.setText("G-code loop enabled." if checked else "G-code loop disabled.")
+            self.feedback_label.setText(
+                "G-code loop enabled." if checked else "G-code loop disabled."
+            )
             return
         if sender is getattr(self, "json_loop_checkbox", None):
-            self.feedback_label.setText("JSON loop enabled." if checked else "JSON loop disabled.")
+            self.feedback_label.setText(
+                "JSON loop enabled." if checked else "JSON loop disabled."
+            )
             return
         if sender is getattr(self, "demo_loop_checkbox", None):
             if checked:
-                self.feedback_label.setText("Demo loop enabled: selected demo will repeat.")
+                self.feedback_label.setText(
+                    "Demo loop enabled: selected demo will repeat."
+                )
             else:
                 self.demo_repeat_timer.stop()
                 self.demo_loop_name = None
@@ -1377,7 +1998,11 @@ class DeltaRobotGui(QMainWindow):
             return
 
         if not self.node.wait_for_demo_trajectory_service(timeout_sec=0.1):
-            QMessageBox.warning(self, "Service unavailable", "play_demo_trajectory service is not available yet.")
+            QMessageBox.warning(
+                self,
+                "Service unavailable",
+                "play_demo_trajectory service is not available yet.",
+            )
             return
 
         if self.pending_demo_future is not None:
@@ -1393,17 +2018,24 @@ class DeltaRobotGui(QMainWindow):
 
     def _set_motion_demo(self, start: bool):
         if not self.node.wait_for_motion_demo_service(timeout_sec=0.1):
-            QMessageBox.warning(self, "Service unavailable", "motion_demo service is not available yet.")
+            QMessageBox.warning(
+                self, "Service unavailable", "motion_demo service is not available yet."
+            )
             return
 
         future = self.node.set_motion_demo(start)
-        self.feedback_label.setText("Demo loop started." if start else "Demo loop stopped.")
+        self.feedback_label.setText(
+            "Demo loop started." if start else "Demo loop stopped."
+        )
         self.pending_demo_future = future
         self.pending_demo_name = "motion_demo"
         if not start:
             self.demo_repeat_timer.stop()
             self.demo_loop_name = None
-            if hasattr(self, "demo_loop_checkbox") and self.demo_loop_checkbox.isChecked():
+            if (
+                hasattr(self, "demo_loop_checkbox")
+                and self.demo_loop_checkbox.isChecked()
+            ):
                 self.demo_loop_checkbox.setChecked(False)
 
     def _repeat_demo_if_needed(self):
@@ -1426,12 +2058,16 @@ class DeltaRobotGui(QMainWindow):
             self.feedback_label.setText(f"Demo request failed: {exc}")
             return
 
-        response_success = True if not hasattr(response, "success") else bool(response.success)
+        response_success = (
+            True if not hasattr(response, "success") else bool(response.success)
+        )
         if response_success:
             if self.pending_demo_name == "motion_demo":
                 self.feedback_label.setText("Demo loop command accepted.")
             elif self.pending_demo_name:
-                self.feedback_label.setText(f"Demo trajectory queued: {self.pending_demo_name}")
+                self.feedback_label.setText(
+                    f"Demo trajectory queued: {self.pending_demo_name}"
+                )
                 if self.demo_loop_checkbox.isChecked() and self.demo_loop_name:
                     self.demo_repeat_timer.start(700)
         else:
@@ -1452,7 +2088,9 @@ class DeltaRobotGui(QMainWindow):
     def _toggle_planner_mode(self):
         """Toggle between TASK_MODE (0) and LIVE_TEACH_MODE (1)"""
         if not self.node.wait_for_mode_service(timeout_sec=0.1):
-            QMessageBox.warning(self, "Service unavailable", "set_motion_mode service is not available.")
+            QMessageBox.warning(
+                self, "Service unavailable", "set_motion_mode service is not available."
+            )
             return
 
         if self.pending_mode_future is not None:
@@ -1483,7 +2121,9 @@ class DeltaRobotGui(QMainWindow):
                 self._schedule_live_publish(immediate=True)
             elif self.planner_mode == 0:
                 self.live_publish_timer.stop()
-            self.feedback_label.setText(f"Mode switched to {mode_name}. {response.message}")
+            self.feedback_label.setText(
+                f"Mode switched to {mode_name}. {response.message}"
+            )
         else:
             self.feedback_label.setText(f"Mode switch rejected: {response.message}")
 
@@ -1492,13 +2132,19 @@ class DeltaRobotGui(QMainWindow):
     def _on_live_mode_changed(self, checked: bool):
         if checked:
             if self.planner_mode == 1:
-                self.feedback_label.setText("Live move enabled: slider changes publish immediately.")
+                self.feedback_label.setText(
+                    "Live move enabled: slider changes publish immediately."
+                )
                 self._schedule_live_publish()
             else:
-                self.feedback_label.setText("Live move enabled: switch the planner to LIVE TEACH MODE to publish.")
+                self.feedback_label.setText(
+                    "Live move enabled: switch the planner to LIVE TEACH MODE to publish."
+                )
         else:
             self.live_publish_timer.stop()
-            self.feedback_label.setText("Live move disabled: use Send Pos to move in TASK MODE.")
+            self.feedback_label.setText(
+                "Live move disabled: use Send Pos to move in TASK MODE."
+            )
 
     def _on_cartesian_slider_pressed(self):
         if self.live_move_checkbox.isChecked():
@@ -1513,7 +2159,9 @@ class DeltaRobotGui(QMainWindow):
         self.tilt_slider.setEnabled(checked)
         self.spin_slider.setEnabled(checked)
         if not checked:
-            self.feedback_label.setText("Orientation disabled: tilt and spin are forced to 0.")
+            self.feedback_label.setText(
+                "Orientation disabled: tilt and spin are forced to 0."
+            )
         self._on_orientation_setting_changed(checked)
 
     def _effective_orientation_rad(self):
@@ -1526,7 +2174,10 @@ class DeltaRobotGui(QMainWindow):
     def _apply_orientation_settings(self):
         if not self.node.wait_for_parameter_service(timeout_sec=0.0):
             return
-        if self.pending_param_future is not None and not self.pending_param_future.done():
+        if (
+            self.pending_param_future is not None
+            and not self.pending_param_future.done()
+        ):
             self.param_apply_timer.start(80)
             return
 
@@ -1576,7 +2227,9 @@ class DeltaRobotGui(QMainWindow):
 
     def _schedule_live_publish(self, immediate: bool = False):
         if self.planner_mode != 1:
-            self.feedback_label.setText("Live publish is only active in LIVE TEACH MODE.")
+            self.feedback_label.setText(
+                "Live publish is only active in LIVE TEACH MODE."
+            )
             return
 
         self.live_publish_timer.stop()
@@ -1595,10 +2248,12 @@ class DeltaRobotGui(QMainWindow):
         self.target_preview.setText(
             f"Target: x={x:.3f} m, y={y:.3f} m, z={z:.3f} m, "
             f"tilt={math.degrees(tilt):.1f} deg, spin={math.degrees(spin):.1f} deg, "
-            f"obj={self.object_center_offset_spin.value():.3f} m")
+            f"obj={self.object_center_offset_spin.value():.3f} m"
+        )
         self.feedback_label.setText(
             f"Publishing live pose stream: x={x:.3f} m, y={y:.3f} m, z={z:.3f} m, "
-            f"tilt={math.degrees(tilt):.1f} deg, spin={math.degrees(spin):.1f} deg")
+            f"tilt={math.degrees(tilt):.1f} deg, spin={math.degrees(spin):.1f} deg"
+        )
         self.node.publish_live_target(x, y, z)
         self.node.publish_live_orientation(tilt, spin)
 
@@ -1608,20 +2263,28 @@ class DeltaRobotGui(QMainWindow):
         point_available = self.node.wait_for_service(timeout_sec=0.1)
         if not pose_available and not point_available:
             if silent:
-                self.feedback_label.setText("Waiting for move_to_point / move_to_pose service...")
+                self.feedback_label.setText(
+                    "Waiting for move_to_point / move_to_pose service..."
+                )
             else:
-                QMessageBox.warning(self, "Service unavailable", "move_to_point / move_to_pose is not available yet.")
+                QMessageBox.warning(
+                    self,
+                    "Service unavailable",
+                    "move_to_point / move_to_pose is not available yet.",
+                )
             return
 
         x, y, z, tilt, spin = self._cartesian_target()
         self.target_preview.setText(
             f"Target: x={x:.3f} m, y={y:.3f} m, z={z:.3f} m, "
             f"tilt={math.degrees(tilt):.1f} deg, spin={math.degrees(spin):.1f} deg, "
-            f"obj={self.object_center_offset_spin.value():.3f} m")
+            f"obj={self.object_center_offset_spin.value():.3f} m"
+        )
         if pose_available:
             self.feedback_label.setText(
                 f"Sending pose: x={x:.3f} m, y={y:.3f} m, z={z:.3f} m, "
-                f"tilt={math.degrees(tilt):.1f} deg, spin={math.degrees(spin):.1f} deg")
+                f"tilt={math.degrees(tilt):.1f} deg, spin={math.degrees(spin):.1f} deg"
+            )
             self.pending_future = self.node.send_pose(
                 x,
                 y,
@@ -1632,7 +2295,8 @@ class DeltaRobotGui(QMainWindow):
             )
         else:
             self.feedback_label.setText(
-                f"Sending XYZ: x={x:.3f} m, y={y:.3f} m, z={z:.3f} m")
+                f"Sending XYZ: x={x:.3f} m, y={y:.3f} m, z={z:.3f} m"
+            )
             self.pending_future = self.node.send_target(x, y, z)
 
     def _poll_pending_future(self):
@@ -1655,7 +2319,7 @@ class DeltaRobotGui(QMainWindow):
     def _home_position(self):
         self.x_slider.set_mm(0)
         self.y_slider.set_mm(0)
-        self.z_slider.set_mm(-199)
+        self.z_slider.set_mm(-375)
         self.tilt_slider.set_mm(0)
         self.spin_slider.set_mm(0)
         self._send_target_from_sliders(silent=False)
@@ -1756,7 +2420,9 @@ class DeltaRobotGui(QMainWindow):
             self.process.kill()
 
     def _read_process_output(self):
-        data = bytes(self.process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        data = bytes(self.process.readAllStandardOutput()).decode(
+            "utf-8", errors="replace"
+        )
         if data:
             self._append_console_line(data.rstrip())
 
@@ -1772,9 +2438,15 @@ class DeltaRobotGui(QMainWindow):
             elif label == "JSON" and hasattr(self, "json_loop_checkbox"):
                 loop_enabled = self.json_loop_checkbox.isChecked()
 
-        if loop_enabled and not self.stop_requested and self.pending_file_job is not None:
+        if (
+            loop_enabled
+            and not self.stop_requested
+            and self.pending_file_job is not None
+        ):
             label, program, args = self.pending_file_job
-            QTimer.singleShot(100, lambda: self._run_external_process(label, program, args))
+            QTimer.singleShot(
+                100, lambda: self._run_external_process(label, program, args)
+            )
 
     def _process_error(self, error):
         self.activity_indicator.setText("Idle")
@@ -1825,7 +2497,10 @@ class DeltaRobotGui(QMainWindow):
 
 
 def main():
-    if os.environ.get("WAYLAND_DISPLAY") and os.environ.get("QT_QPA_PLATFORM", "").strip() == "":
+    if (
+        os.environ.get("WAYLAND_DISPLAY")
+        and os.environ.get("QT_QPA_PLATFORM", "").strip() == ""
+    ):
         os.environ["QT_QPA_PLATFORM"] = "wayland"
     app = QApplication(sys.argv)
     gui = DeltaRobotGui()

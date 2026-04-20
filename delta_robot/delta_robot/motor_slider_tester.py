@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
 )
 
 
-MOTOR_IDS = [1, 2, 3, 4, 5]
+MOTOR_IDS = [4, 5]
 MOTOR_MIN = 0
 MOTOR_MAX = 4095
 MOTOR_CENTER = 2048
@@ -75,7 +75,9 @@ class Esp32Bridge:
             raise RuntimeError("serial port is not open")
 
         with self.lock:
-            self.serial_port.write((command.strip() + "\n").encode("ascii", errors="ignore"))
+            self.serial_port.write(
+                (command.strip() + "\n").encode("ascii", errors="ignore")
+            )
             self.serial_port.flush()
             return self._read_lines()
 
@@ -194,7 +196,7 @@ class MotorSliderTester(QMainWindow):
         layout.addWidget(subtitle)
 
         connection_row = QHBoxLayout()
-        self.port_edit = QLineEdit("/dev/ttyUSB0")
+        self.port_edit = QLineEdit("/dev/ttyUSB1")
         self.baud_spin = QSpinBox()
         self.baud_spin.setRange(9600, 4000000)
         self.baud_spin.setValue(DEFAULT_BAUD)
@@ -262,12 +264,15 @@ class MotorSliderTester(QMainWindow):
         self.send_button.clicked.connect(self.send_current)
         self.refresh_button = QPushButton("Refresh Feedback")
         self.refresh_button.clicked.connect(self.refresh_feedback)
+        self.force_mode_button = QPushButton("Force Servo Mode")
+        self.force_mode_button.clicked.connect(self.force_servo_mode)
 
         button_row.addWidget(self.center_all_button)
         button_row.addWidget(self.all_min_button)
         button_row.addWidget(self.all_max_button)
         button_row.addWidget(self.send_button)
         button_row.addWidget(self.refresh_button)
+        button_row.addWidget(self.force_mode_button)
         button_row.addStretch(1)
         layout.addLayout(button_row)
 
@@ -335,7 +340,32 @@ class MotorSliderTester(QMainWindow):
             self.bridge.baudrate = int(self.baud_spin.value())
             self.bridge.connect()
             self.status_label.setText(f"Connected to {self.bridge.port}")
-            self.console.setText("Connected. Sending torque / center commands...")
+            self.console.setText(
+                "Connected. Sending mode, torque, and center commands..."
+            )
+
+            # Set all motors to servo mode (MODE x 0) and check mode
+            for motor_id in MOTOR_IDS:
+                mode_lines = self._send_command(f"MODE {motor_id} 0")
+                # Check mode by reading feedback (GETP returns mode in FB line)
+                getp_lines = self._send_command(f"GETP {motor_id}")
+                mode_ok = False
+                for line in getp_lines:
+                    if line.startswith("FB id="):
+                        tokens = line.replace(",", " ").split()
+                        for token in tokens:
+                            if token.startswith("mode="):
+                                try:
+                                    mode_val = int(token.split("=", 1)[1])
+                                    if mode_val == 0:
+                                        mode_ok = True
+                                except Exception:
+                                    pass
+                        break
+                if not mode_ok:
+                    self.console.setText(f"Error: Motor {motor_id} mode not set to 0!")
+                    self.status_label.setText(f"Mode error on ID{motor_id}")
+                    return
 
             if self.torque_checkbox.isChecked():
                 for motor_id in MOTOR_IDS:
@@ -391,6 +421,37 @@ class MotorSliderTester(QMainWindow):
         for motor_id in MOTOR_IDS:
             self.rows[motor_id]._set_value(value, "program")
         self.send_current()
+
+    def force_servo_mode(self):
+        if not self.bridge.is_open():
+            QMessageBox.warning(self, "Not Connected", "Connect to the ESP32 first.")
+            return
+
+        success = True
+        for motor_id in MOTOR_IDS:
+            self._send_command(f"MODE {motor_id} 0")
+            getp_lines = self._send_command(f"GETP {motor_id}")
+            mode_ok = False
+            for line in getp_lines:
+                if line.startswith("FB id="):
+                    tokens = line.replace(",", " ").split()
+                    for token in tokens:
+                        if token.startswith("mode="):
+                            try:
+                                mode_val = int(token.split("=", 1)[1])
+                                if mode_val == 0:
+                                    mode_ok = True
+                            except Exception:
+                                pass
+                    break
+            if not mode_ok:
+                success = False
+                self.console.setText(f"Error: Motor {motor_id} mode not forced to 0!")
+                self.status_label.setText(f"Mode error on ID{motor_id}")
+
+        if success:
+            self.console.setText("Successfully forced servo mode (0) on all motors.")
+            self.status_label.setText("Servo Mode Forced")
 
     def refresh_feedback(self):
         if not self.bridge.is_open() or not self.feedback_checkbox.isChecked():

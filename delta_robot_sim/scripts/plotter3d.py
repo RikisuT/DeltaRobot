@@ -19,6 +19,7 @@ class DeltaEEPlotter(Node):
         self.declare_parameter("commanded_child_frame", "delta_robot/commanded_end_effector_pin")
         self.declare_parameter("calculated_fk_child_frame", "delta_robot/calculated_fk_end_effector_pin")
         self.declare_parameter("actual_fk_child_frame", "delta_robot/actual_fk_end_effector_pin")
+        self.declare_parameter("ee_child_frame", "ee_link")
 
         self.marker_frame = self.get_parameter("marker_frame").get_parameter_value().string_value
         self.publish_rate_hz = max(
@@ -30,6 +31,7 @@ class DeltaEEPlotter(Node):
         commanded_child_frame = self.get_parameter("commanded_child_frame").get_parameter_value().string_value
         calculated_fk_child_frame = self.get_parameter("calculated_fk_child_frame").get_parameter_value().string_value
         actual_fk_child_frame = self.get_parameter("actual_fk_child_frame").get_parameter_value().string_value
+        ee_child_frame = self.get_parameter("ee_child_frame").get_parameter_value().string_value
 
         # TF Buffer and Listener
         self.tf_buffer = tf2_ros.Buffer()
@@ -63,6 +65,11 @@ class DeltaEEPlotter(Node):
             namespace="ee_trajectory_actual_fk",
             color=(1.0, 0.2, 0.4),
         )
+        self.ee_marker = self._create_line_marker(
+            marker_id=4,
+            namespace="ee_trajectory_sensor",
+            color=(0.9, 0.9, 0.1),
+        )
 
         self.tf_traces = [
             {
@@ -89,12 +96,19 @@ class DeltaEEPlotter(Node):
                 "child": actual_fk_child_frame,
                 "error_attr": "_last_actual_fk_transform_error",
             },
+            {
+                "marker": self.ee_marker,
+                "parent": self.marker_frame,
+                "child": ee_child_frame,
+                "error_attr": "_last_ee_transform_error",
+            },
         ]
 
         self._last_sim_transform_error = ""
         self._last_commanded_transform_error = ""
         self._last_calculated_fk_transform_error = ""
         self._last_actual_fk_transform_error = ""
+        self._last_ee_transform_error = ""
 
         self.get_logger().info(
             f"EE plotter configured with marker_frame={self.marker_frame}, "

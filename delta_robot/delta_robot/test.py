@@ -9,7 +9,7 @@ PORT = "/dev/ttyUSB0"
 BAUD = 500000
 TIMEOUT_S = 0.2
 
-MOTOR_IDS = (1, 2, 3, 4, 5)
+MOTOR_IDS = (4, 5)
 
 APPLY_NEW_LIMITS = True
 NEW_LIMIT_MIN = 0

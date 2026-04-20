@@ -83,6 +83,8 @@ install(PROGRAMS
   delta_robot/joint_state_bridge.py
   delta_robot/gcode_parser.py
   delta_robot/json_task_sequencer.py
+  delta_robot/ee_tf_broadcaster.py
+  delta_robot/plot_tf_error.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

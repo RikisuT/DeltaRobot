@@ -11,7 +11,7 @@ import serial
 from deltarobot_interfaces.msg import DeltaJoints
 from deltarobot_interfaces.msg import DeltaJointVels
 from deltarobot_interfaces.srv import SetJointLimits
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, UInt8MultiArray, String
 
 # ST Servo Constants
 BAUDRATE = 500000
@@ -114,10 +114,19 @@ class DeltaMotorControl(Node):
         self.missing_motor_ids = list(ALL_MOTOR_IDS)
         self.bridge_binary_enabled = False
         self.bin_seq = 1
-        self.latest_motor_positions = {sid: int(UP_POS) for sid in ALL_MOTOR_IDS}
-        self.latest_motor_velocities = {sid: 0 for sid in ALL_MOTOR_IDS}
-        # Track last published positions to retain state when feedback is missing
-        self.last_published_motor_positions = [int(UP_POS)] * len(ALL_MOTOR_IDS)
+        # Feedback state: only populated when real feedback arrives
+        self.latest_motor_positions = {}
+        self.latest_motor_velocities = {}
+        # Track last published positions to retain state when feedback is missing.
+        # Use None to indicate we have no prior reading yet.
+        self.last_published_motor_positions = [None] * len(ALL_MOTOR_IDS)
+        # Have we received at least one valid position sample for the visible motors?
+        self._first_valid_feedback_received = False
+        # Set of motor IDs for which we've received valid feedback
+        self._valid_feedback_ids = set()
+
+        # Publisher to notify UI/apps about initialization status (mode failures, etc.)
+        self.init_status_pub = self.create_publisher(String, "delta_motors/init_status", 10)
 
         self._initialize_hardware()
 
@@ -157,6 +166,14 @@ class DeltaMotorControl(Node):
         )
         self.servo_actual_pub = self.create_publisher(
             Float32MultiArray, "/servo/actual", 10
+        )
+
+        # Subscriber for torque control commands: [motor_id, enable] (e.g., [1, 0] = motor 1 OFF)
+        self.torque_command_sub = self.create_subscription(
+            UInt8MultiArray,
+            "delta_motors/torque_command",
+            self._torque_command_callback,
+            10,
         )
 
         # Timer (50Hz - increased for better control and plotter resolution)
@@ -241,9 +258,13 @@ class DeltaMotorControl(Node):
         if sid is None or sid not in ALL_MOTOR_IDS or pos is None:
             return False
 
+        # Save feedback (accept pos==0 as a valid reading)
         self.latest_motor_positions[sid] = pos
         if spd is not None:
             self.latest_motor_velocities[sid] = spd
+        # Mark this servo as having valid feedback
+        self._valid_feedback_ids.add(sid)
+        self._first_valid_feedback_received = True
         return True
 
     def _drain_serial_feedback(self, max_lines=200):
@@ -402,21 +423,23 @@ class DeltaMotorControl(Node):
             self.hardware_available = False
             return
 
+        failed_mode_ids = []
         for st_id in self.visible_motor_ids:
+            # Enable torque first
             self._bridge_request(
                 f"TORQUE {st_id} 1", wait_s=0.15, stop_prefixes=("OK torque", "ERR")
             )
             self.get_logger().info(f"Torque enabled for Motor ID: {st_id}")
-            
-            # Set servo mode (Mode 0) after enabling torque
+
+            # Request servo mode (Mode 0)
             mode_rsp = self._bridge_request(
                 f"MODE {st_id} 0", wait_s=0.15, stop_prefixes=("OK mode", "ERR")
             )
             if any(ln.startswith(f"OK mode id={st_id}") for ln in mode_rsp):
                 self.get_logger().info(f"Servo mode set for Motor ID: {st_id}")
             else:
-                self.get_logger().warning(f"Motor ID {st_id} servo mode not confirmed")
-            
+                self.get_logger().warning(f"Motor ID {st_id} servo mode not confirmed by MODE response")
+
             # Verify servo mode by reading actual mode with AREAD
             verify_rsp = self._bridge_request(
                 f"AREAD {st_id}", wait_s=0.15, stop_prefixes=("FBA", "ERR")
@@ -427,14 +450,26 @@ class DeltaMotorControl(Node):
                     mode_verified = True
                     self.get_logger().info(f"Motor ID {st_id} verified in servo mode")
                     break
+
             if not mode_verified:
                 self.get_logger().warning(f"Motor ID {st_id} servo mode verification failed")
-            
-            # Move to midpoint after setting servo mode
-            self._bridge_request(
-                f"MIDDLE {st_id}", wait_s=0.15, stop_prefixes=("OK middle", "ERR")
-            )
-            self.get_logger().info(f"Motor ID {st_id} moved to midpoint")
+                failed_mode_ids.append(st_id)
+            else:
+                # Only move to midpoint when servo mode is verified
+                self._bridge_request(
+                    f"MIDDLE {st_id}", wait_s=0.15, stop_prefixes=("OK middle", "ERR")
+                )
+                self.get_logger().info(f"Motor ID {st_id} moved to midpoint")
+
+        # If any motors failed mode verification, publish a status message for GUI/user
+        if failed_mode_ids:
+            try:
+                msg = String()
+                msg.data = f"MODE_VERIFY_FAIL ids={failed_mode_ids}"
+                self.init_status_pub.publish(msg)
+            except Exception:
+                # Non-fatal; log and continue
+                self.get_logger().warning(f"Failed to publish init status for failed IDs: {failed_mode_ids}")
 
         self._bridge_request("TMODE POS", wait_s=0.15, stop_prefixes=("OK tmode", "ERR"))
         self._bridge_request(
@@ -570,19 +605,32 @@ class DeltaMotorControl(Node):
             self.hardware_available = False
             return
 
+        # If we haven't yet received valid feedback for all visible motors, skip publishing.
+        if self.visible_motor_ids and not self._valid_feedback_ids.issuperset(self.visible_motor_ids):
+            missing = sorted(set(self.visible_motor_ids) - self._valid_feedback_ids)
+            self.get_logger().debug(f"Awaiting feedback for motors {missing}; skipping publish")
+            return
+
         # Initialize with last published positions to retain state when feedback is missing
         motor_positions = list(self.last_published_motor_positions)
         motor_velocities = [0] * len(ALL_MOTOR_IDS)
         for st_id in self.visible_motor_ids:
-            pos = self.latest_motor_positions.get(st_id, int(UP_POS))
+            pos = self.latest_motor_positions.get(st_id, None)
             spd = self.latest_motor_velocities.get(st_id, 0)
 
-            # Safety guard retained from prior implementation.
-            if pos == 0:
+            # Validate bounds; accept 0 as a valid reading
+            if pos is None:
+                continue
+            if pos < 0 or pos > MOTOR_MAX_POS:
                 continue
 
             motor_positions[st_id - 1] = pos
             motor_velocities[st_id - 1] = spd
+
+        # Ensure all positions are ints for conversion; fall back to center for unknown slots
+        for i in range(len(motor_positions)):
+            if motor_positions[i] is None:
+                motor_positions[i] = int(UP_POS)
 
         # Convert and Publish
         pos_msg = DeltaJoints()
@@ -629,6 +677,33 @@ class DeltaMotorControl(Node):
         actual_msg = Float32MultiArray()
         actual_msg.data = [float(p) for p in motor_positions]
         self.servo_actual_pub.publish(actual_msg)
+
+    def _torque_command_callback(self, msg):
+        """Handle torque control commands: [motor_id, enable] pairs."""
+        if not self.hardware_available or not self.serial_port:
+            self.get_logger().warning("Torque command received but hardware not available")
+            return
+        
+        try:
+            # Parse command: expects [motor_id, enable] where enable is 0 or 1
+            if len(msg.data) >= 2:
+                motor_id = int(msg.data[0])
+                enable = int(msg.data[1])
+                
+                # Clamp values
+                motor_id = max(1, min(5, motor_id))
+                enable = 1 if enable else 0
+                
+                # Send TORQUE command to ESP32 board
+                cmd = f"TORQUE {motor_id} {enable}"
+                response = self._bridge_request(cmd, wait_s=0.15, stop_prefixes=("OK torque", "ERR"))
+                
+                if any("OK torque" in line for line in response):
+                    self.get_logger().info(f"Torque command sent: Motor {motor_id} -> {'ON' if enable else 'OFF'}")
+                else:
+                    self.get_logger().warning(f"Torque command failed for motor {motor_id}: {response}")
+        except Exception as e:
+            self.get_logger().error(f"Error processing torque command: {str(e)}")
 
 
 def main(args=None):

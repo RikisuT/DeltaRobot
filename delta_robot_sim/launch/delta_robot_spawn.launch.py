@@ -184,7 +184,12 @@ def generate_launch_description():
         name="joint_state_bridge",
         output="screen",
         parameters=[{"joint_names": feedback_joint_names}],
-        condition=IfCondition(LaunchConfiguration("use_sim_feedback")),  # ← add this
+        # Remap simulation feedback topics so they do not conflict with hardware feedback
+        remappings=[
+            ("delta_motors/motor_position_feedback", "delta_motors/motor_position_feedback_sim"),
+            ("delta_motors/motor_velocity_feedback", "delta_motors/motor_velocity_feedback_sim"),
+        ],
+        condition=IfCondition(LaunchConfiguration("use_sim_feedback")),
     )
 
     plotter3d = TimerAction(
