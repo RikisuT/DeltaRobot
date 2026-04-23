@@ -27,6 +27,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <array>
 using DeltaIK = deltarobot_interfaces::srv::DeltaIK;
 using DeltaFK = deltarobot_interfaces::srv::DeltaFK;
 using PlayDemoTraj = deltarobot_interfaces::srv::PlayDemoTrajectory;
@@ -94,6 +95,16 @@ private:
   std::string calculated_fk_tf_child_frame;
   std::string actual_fk_tf_parent_frame;
   std::string actual_fk_tf_child_frame;
+
+  // Latest motor feedback (radians) tracked for transition smoothing decisions
+  std::array<double, 5> latest_motor_feedback{{0.0, 0.0, 0.0, 0.0, 0.0}};
+  std::atomic<bool> have_latest_feedback{false};
+  std::mutex feedback_mutex;
+
+  // Smoothing / transition behavior (configurable via parameters)
+  bool enable_smooth_transitions = true;
+  double smooth_start_tolerance_rad = 0.02; // ~1.1 deg
+  double smooth_transition_timeout_s = 5.0;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameters_callback_handle;
 

@@ -25,7 +25,7 @@ class GCodeParserNode(Node):
         self.declare_parameter("move_to_pose_service", "delta_motion_planner/move_to_pose")
         self.declare_parameter("play_custom_trajectory_service", "delta_motion_planner/play_custom_trajectory")
         self.declare_parameter("default_units", "meters")
-        self.declare_parameter("home_z_mm", -220.0)
+        self.declare_parameter("home_z_mm", -300.0)
         self.declare_parameter("min_move_time_s", 0.02)
         self.declare_parameter("default_speed_mm_s", 300.0)
         self.declare_parameter("motion_rate_hz", 100.0)

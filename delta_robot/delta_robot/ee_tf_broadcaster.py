@@ -99,7 +99,7 @@ class EETfBroadcaster(Node):
         t.transform.translation.y = y_m
         t.transform.translation.z = z_m
 
-        q = euler_to_quaternion(roll, pitch, -yaw)
+        q = euler_to_quaternion(roll, pitch, -yaw + 90)
 
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
