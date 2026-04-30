@@ -6,7 +6,7 @@ import serial
 
 
 PORT = "/dev/ttyUSB0"
-BAUD = 500000
+BAUD = 921600
 TIMEOUT_S = 0.2
 
 MOTOR_IDS = (4, 5)

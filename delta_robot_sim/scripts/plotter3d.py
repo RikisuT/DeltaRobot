@@ -13,8 +13,8 @@ class DeltaEEPlotter(Node):
         super().__init__("delta_ee_plotter")
 
         self.declare_parameter("marker_frame", "delta_robot/world_link")
-        self.declare_parameter("publish_rate_hz", 15.0)
-        self.declare_parameter("max_points", 250)
+        self.declare_parameter("publish_rate_hz", 60.0)
+        self.declare_parameter("max_points", 1000)
         self.declare_parameter("sim_child_frame", "delta_robot/end_effector_pin")
         self.declare_parameter("commanded_child_frame", "delta_robot/commanded_end_effector_pin")
         self.declare_parameter("calculated_fk_child_frame", "delta_robot/calculated_fk_end_effector_pin")
@@ -125,7 +125,7 @@ class DeltaEEPlotter(Node):
         marker.id = marker_id
         marker.type = Marker.LINE_STRIP
         marker.action = Marker.ADD
-        marker.scale.x = 0.005
+        marker.scale.x = 0.0005
         marker.color.r = color[0]
         marker.color.g = color[1]
         marker.color.b = color[2]

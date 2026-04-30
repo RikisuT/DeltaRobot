@@ -286,7 +286,8 @@ class ControlPanel(QtWidgets.QWidget):
 
         saved = self._app._save_snapshots()
 
-        lines = [f"Saved {len(saved)} files:"]
+        lines = [f"Saved {len(saved)} files (color + B&W):"]
+        # Show just the basenames, grouped in pairs
         for p in saved:
             lines.append(f"  • {os.path.basename(p)}")
         self.lbl_saved.setText("\n".join(lines))
@@ -373,7 +374,7 @@ class PlotApp:
     def _build_3d_window(self):
         self.win_3d = gl.GLViewWidget()
         self.win_3d.setWindowTitle("3D Isometric View")
-        self.win_3d.resize(900, 900)
+        self.win_3d.resize(700, 700)
         self.win_3d.setBackgroundColor("w")          # white to match 2-D windows
  
         # Camera centred on the actual data volume
@@ -482,34 +483,7 @@ class PlotApp:
             )
             self.win_3d.addItem(item)
             self.lines_3d[k] = item
-        # ── Legend Overlay (2D Floating HUD) ─────────────────────────
-        self.legend_3d = QtWidgets.QLabel(self.win_3d)
-        # Let mouse drag events pass through the legend so it doesn't block camera rotation
-        self.legend_3d.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-        self.legend_3d.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 255, 255, 210);
-                border: 1px solid #aaa;
-                border-radius: 4px;
-                padding: 6px 10px;
-                font-family: sans-serif;
-                font-size: 12px;
-                color: black;
-            }
-        """)
-        
-        # Build HTML for the legend using the exact colors and labels
-        html_lines = ["<div style='margin-bottom: 2px;'><b>Legend</b></div>"]
-        for k in self._keys:
-            r, g, b, _ = COLORS[k]
-            # Use a colored square text character
-            html_lines.append(
-                f"<span style='color: rgb({r},{g},{b}); font-size: 16px;'>■</span> {LABELS[k]}"
-            )
-            
-        self.legend_3d.setText("<br>".join(html_lines))
-        self.legend_3d.move(15, 15)  # Anchor to top-left corner
-        self.legend_3d.adjustSize()
+
 
     def _build_rpy_window(self):
         self.win_rpy = pg.GraphicsLayoutWidget(title="End-Effector Rotation vs Time")
@@ -632,7 +606,7 @@ class PlotApp:
     # ------------------------------------------------------------------
 
     def _save_snapshots(self) -> list[str]:
-        """Capture each window to a color PNG.
+        """Capture each window to a color PNG and a B&W PNG.
 
         Returns the list of all saved paths.
         """
@@ -664,6 +638,15 @@ class PlotApp:
                 saved.append(color_path)
             else:
                 print(f"[WARN] Failed to save {color_path}", file=sys.stderr)
+
+            # ── 3. convert to grayscale and save B&W copy ─────────────
+            # Qt's Format_Grayscale8 gives a true luminance-weighted conversion
+            qimg_bw   = qimg_color.convertToFormat(QtGui.QImage.Format_Grayscale8)
+            bw_path   = os.path.join(out_dir, f"ee_tf_{label}_bw_{ts}.png")
+            if qimg_bw.save(bw_path):
+                saved.append(bw_path)
+            else:
+                print(f"[WARN] Failed to save {bw_path}", file=sys.stderr)
 
         print(f"[INFO] {len(saved)} images saved to {out_dir}")
         return saved

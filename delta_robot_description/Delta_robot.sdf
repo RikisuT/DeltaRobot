@@ -1,0 +1,2040 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.7">
+    <model name="Delta_robot">
+        <link name="delta_base-v1">
+            <pose>0.0 0.0 -0.01 0.0 -0.0 0.0</pose>
+            <inertial>
+                <mass>0.6892261790377806</mass>
+                <pose>0.0 8.907220044279172e-18 0.01 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>0.0007283761405242909</ixx>
+                    <iyy>0.0007283761405242914</iyy>
+                    <izz>0.0014108038691127303</izz>
+                    <ixy>4.911271389573813e-19</ixy>
+                    <iyz>-9.860761315262648e-36</iyz>
+                    <ixz>0.0</ixz>
+                </inertia>
+            </inertial>
+            <visual name="delta_base-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/delta_base-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="delta_base-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/delta_base-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_1_servo_2_Component4">
+            <pose>-0.043750249999999935 0.0757776558438403 3.3306690738754695e-17 -5.555007502320941e-17 -1.249000902703301e-16 2.0943951023931953</pose>
+            <inertial>
+                <mass>0.0008532390342940089</mass>
+                <pose>0.012496298945272342 0.017506580215121876 2.746276213396865e-06 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.860245924565709e-08</ixx>
+                    <iyy>3.4975209273542446e-08</iyy>
+                    <izz>1.860260247840339e-08</izz>
+                    <ixy>-6.732314465053313e-12</ixy>
+                    <iyz>4.957748859285985e-12</iyz>
+                    <ixz>-4.629012834133742e-12</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_1_servo_2_Component4_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_servo_2_Component4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_1_servo_2_Component4_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_servo_2_Component4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_1_servo_2_Component5">
+            <pose>-0.043750250000000046 0.07577765584384046 -2.501355742323148e-16 5.313925098443974e-17 -4.735455214955318e-17 2.0943951023931953</pose>
+            <inertial>
+                <mass>0.0007102107499427687</mass>
+                <pose>0.01249950000000001 -0.016759605738347897 9.822176700896603e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5329291010551914e-08</ixx>
+                    <iyy>2.9595888359559828e-08</iyy>
+                    <izz>1.5329291609575884e-08</izz>
+                    <ixy>-3.0109374296930207e-22</ixy>
+                    <iyz>3.351969722552711e-19</iyz>
+                    <ixz>2.3962742902140616e-23</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_1_servo_2_Component5_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_servo_2_Component5.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_1_servo_2_Component5_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_servo_2_Component5.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_1_servo_mount2">
+            <pose>-0.039349999999999934 0.0681561992778352 -1.9539925233402755e-16 -1.5707963267948966 -0.0 -2.617993877991495</pose>
+            <inertial>
+                <mass>0.024127025708471687</mass>
+                <pose>0.0006322830044103115 -1.1025942227681298e-05 0.010573616610440126 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.756338744922234e-06</ixx>
+                    <iyy>6.633255769553922e-06</iyy>
+                    <izz>6.110525056257683e-06</izz>
+                    <ixy>-4.69059619972163e-09</ixy>
+                    <iyz>-5.0692158737935764e-09</iyz>
+                    <ixz>3.691154768093061e-07</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_1_servo_mount2_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_servo_mount2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_1_servo_mount2_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_servo_mount2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_1_bicep2">
+            <pose>-0.05025980688799914 0.08645253910861488 9.291108614540469e-10 4.163336342344331e-17 -6.72039926682411e-16 0.5235987755982986</pose>
+            <inertial>
+                <mass>0.029913547230258724</mass>
+                <pose>4.307324687175533e-08 0.047237015514564565 -0.00040485300507314275 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.234508374945273e-05</ixx>
+                    <iyy>5.924629490287117e-06</iyy>
+                    <izz>3.551984263755882e-05</izz>
+                    <ixy>1.2376137324370657e-11</ixy>
+                    <iyz>-2.8564492928281694e-07</iyz>
+                    <ixz>2.9264713877411338e-12</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_1_bicep2_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_bicep2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_1_bicep2_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_1_bicep2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_2_servo_1_Component20">
+            <pose>0.0875005 -5.763340120719091e-17 3.835201412822194e-17 1.018693230452881e-16 -1.2246467991473532e-16 -1.7757162039761424e-17</pose>
+            <inertial>
+                <mass>0.0008532390342940089</mass>
+                <pose>0.01249629894527233 0.01750658021512187 2.7462762133979e-06 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.8602459245656847e-08</ixx>
+                    <iyy>3.497520927354235e-08</iyy>
+                    <izz>1.860260247840508e-08</izz>
+                    <ixy>-6.732314464861695e-12</ixy>
+                    <iyz>4.9577488593039895e-12</iyz>
+                    <ixz>-4.629012834122295e-12</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_2_servo_1_Component20_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_servo_1_Component20.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_2_servo_1_Component20_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_servo_1_Component20.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_2_servo_1_Component21">
+            <pose>0.08750050000000019 -5.960427566387578e-17 -2.4400367079602194e-16 1.631016630026557e-16 -6.123233995736766e-17 6.12323399573676e-17</pose>
+            <inertial>
+                <mass>0.0007102107499427687</mass>
+                <pose>0.0124995 -0.016759605738347887 9.8221767008966e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.532929101055206e-08</ixx>
+                    <iyy>2.9595888359560417e-08</iyy>
+                    <izz>1.5329291609576725e-08</izz>
+                    <ixy>2.12631813952505e-22</ixy>
+                    <iyz>3.3519697225527145e-19</iyz>
+                    <ixz>2.3962742904046463e-23</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_2_servo_1_Component21_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_servo_1_Component21.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_2_servo_1_Component21_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_servo_1_Component21.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_2_servo_mount1">
+            <pose>0.07869999999999988 1.4259426972529355e-17 -1.9539925246637645e-16 -1.5707963267948966 -1.0186932304528809e-16 1.5707963267948966</pose>
+            <inertial>
+                <mass>0.02412702570847147</mass>
+                <pose>0.0006322830044104956 -1.1025942227689785e-05 0.010573616610440303 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.756338744922162e-06</ixx>
+                    <iyy>6.6332557695538e-06</iyy>
+                    <izz>6.110525056257608e-06</izz>
+                    <ixy>-4.6905961997202375e-09</ixy>
+                    <iyz>-5.0692158737968e-09</iyz>
+                    <ixz>3.6911547680937504e-07</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_2_servo_mount1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_servo_mount1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_2_servo_mount1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_servo_mount1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_2_bicep1">
+            <pose>0.09999999853372772 0.0002999999999999524 9.291108371009336e-10 1.2246467991473502e-16 1.0186932304528905e-16 -1.5707963267948988</pose>
+            <inertial>
+                <mass>0.029913547232360962</mass>
+                <pose>4.307475783622495e-08 0.04723701551208954 -0.00040485300581773995 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.234508375229663e-05</ixx>
+                    <iyy>5.924629491494196e-06</iyy>
+                    <izz>3.5519842641139505e-05</izz>
+                    <ixy>1.2377730425394346e-11</ixy>
+                    <iyz>-2.8564493006737633e-07</iyz>
+                    <ixz>2.9269510974347647e-12</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_2_bicep1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_bicep1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_2_bicep1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_2_bicep1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_3_servo_3_Component12">
+            <pose>-0.043750250000002516 -0.075777655843841 -1.5482835087735494e-17 -3.793983979559455e-17 -1.224646799147189e-16 -2.094395102393061</pose>
+            <inertial>
+                <mass>0.0008532390342940089</mass>
+                <pose>0.01249629894527235 0.0175065802151219 2.7462762133977975e-06 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.8602459245657965e-08</ixx>
+                    <iyy>3.497520927354463e-08</iyy>
+                    <izz>1.860260247840848e-08</izz>
+                    <ixy>-6.732314466537275e-12</ixy>
+                    <iyz>4.957748859383618e-12</iyz>
+                    <ixz>-4.629012834233467e-12</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_3_servo_3_Component12_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_servo_3_Component12.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_3_servo_3_Component12_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_servo_3_Component12.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_3_servo_3_Component13">
+            <pose>-0.04375025000000015 -0.07577765584384034 -2.428774107871309e-16 -7.840942779883387e-17 -5.721188726113839e-18 -2.0943951023931953</pose>
+            <inertial>
+                <mass>0.0007102107499427687</mass>
+                <pose>0.012499500000000014 -0.016759605738347897 9.822176700896604e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.532929101055183e-08</ixx>
+                    <iyy>2.9595888359559385e-08</iyy>
+                    <izz>1.532929160957673e-08</izz>
+                    <ixy>-1.0869153248946784e-21</ixy>
+                    <iyz>3.3519697225527136e-19</iyz>
+                    <ixz>2.396274290190119e-23</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_3_servo_3_Component13_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_servo_3_Component13.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_3_servo_3_Component13_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_servo_3_Component13.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_3_servo_mount3">
+            <pose>-0.039349999999999934 -0.06815619927783514 -1.9539925246637645e-16 -1.5707963267948966 1.224646799147354e-16 -0.5235987755982987</pose>
+            <inertial>
+                <mass>0.024127025708471528</mass>
+                <pose>0.0006322830044104572 -1.1025942227676753e-05 0.010573616610440205 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.7563387449221795e-06</ixx>
+                    <iyy>6.633255769553854e-06</iyy>
+                    <izz>6.1105250562576204e-06</izz>
+                    <ixy>-4.6905961997165376e-09</ixy>
+                    <iyz>-5.069215873797636e-09</iyz>
+                    <ixz>3.6911547680933597e-07</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_3_servo_mount3_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_servo_mount3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_3_servo_mount3_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_servo_mount3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="servo_setup_v8_3_bicep3">
+            <pose>-0.04974019164572876 -0.08675253910861466 9.291107770234996e-10 6.695352868347836e-17 -8.447240904717228e-17 2.6179938779914953</pose>
+            <inertial>
+                <mass>0.029913547232360962</mass>
+                <pose>4.307475788552972e-08 0.04723701551208938 -0.0004048530058174236 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.234508375229991e-05</ixx>
+                    <iyy>5.924629491494105e-06</iyy>
+                    <izz>3.551984264113747e-05</izz>
+                    <ixy>1.2377730534052136e-11</ixy>
+                    <iyz>-2.856449300666621e-07</iyz>
+                    <ixz>2.926951373144609e-12</ixz>
+                </inertia>
+            </inertial>
+            <visual name="servo_setup_v8_3_bicep3_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_bicep3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="servo_setup_v8_3_bicep3_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/servo_setup_v8_3_bicep3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="pivot_arm_1_pivot_joint-v1-4">
+            <pose>0.19999999853372857 0.010299999999999946 9.291107502830466e-10 1.5707963267948966 -0.6904480637793569 -3.141592653589793</pose>
+            <inertial>
+                <mass>0.005676188885471079</mass>
+                <pose>1.8728015256924317e-14 2.2260900625424236e-17 -0.009622552613267055 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5937173262720806e-06</ixx>
+                    <iyy>1.7808708927999865e-06</iyy>
+                    <izz>2.789168847586144e-07</izz>
+                    <ixy>3.494010907423989e-21</ixy>
+                    <iyz>-1.0817170919466895e-22</iyz>
+                    <ixz>3.839696225497476e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="pivot_arm_1_pivot_joint-v1-4_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_1_pivot_joint-v1-4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="pivot_arm_1_pivot_joint-v1-4_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_1_pivot_joint-v1-4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="pivot_arm_3_pivot_joint-v1-2">
+            <pose>-0.09107993760788681 -0.17835507948706167 9.291103790327308e-10 -1.570796326794897 0.6904480637777193 -2.0943951023939515</pose>
+            <inertial>
+                <mass>0.005676188885471079</mass>
+                <pose>1.8812510575054205e-14 -1.9221904847000582e-16 -0.009622552613267138 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5937173262718258e-06</ixx>
+                    <iyy>1.7808708927996614e-06</iyy>
+                    <izz>2.789168847586983e-07</izz>
+                    <ixy>-4.616329562535937e-20</ixy>
+                    <iyz>7.07717299505329e-20</iyz>
+                    <ixz>3.801963328990415e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="pivot_arm_3_pivot_joint-v1-2_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_3_pivot_joint-v1-2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="pivot_arm_3_pivot_joint-v1-2_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_3_pivot_joint-v1-2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="pivot_arm_2_pivot_joint-v1">
+            <pose>-0.10892006092584484 0.16805507948705917 9.291107577976358e-10 1.5707963267949059 -0.6904480637774476 -1.0471975511965803</pose>
+            <inertial>
+                <mass>0.005676188885471079</mass>
+                <pose>1.8738131397969235e-14 2.62040194511007e-17 -0.009622552613267051 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5937173262720573e-06</ixx>
+                    <iyy>1.7808708927999445e-06</iyy>
+                    <izz>2.789168847585584e-07</izz>
+                    <ixy>-4.298692207315574e-20</ixy>
+                    <iyz>-1.2940438568862086e-20</iyz>
+                    <ixz>3.856867702011023e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="pivot_arm_2_pivot_joint-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_2_pivot_joint-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="pivot_arm_2_pivot_joint-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_2_pivot_joint-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8">
+            <pose>-0.07415817900285404 0.17984573382972752 0.005923009906287616 0.880347828790732 -0.0010253192969131365 0.5244457816654766</pose>
+            <inertial>
+                <mass>0.007952730726709866</mass>
+                <pose>1.3941598307563067e-08 -0.0016857136439994381 -0.007940361075009771 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.49846697066608e-07</ixx>
+                    <iyy>5.513833006634825e-07</iyy>
+                    <izz>1.9734043484777903e-07</izz>
+                    <ixy>1.7760763833207715e-12</ixy>
+                    <iyz>-1.821729874402067e-08</iyz>
+                    <ixz>2.2721669520534576e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4">
+            <pose>-0.11919149999964149 0.15384573382972228 0.0059230099062813225 0.8803478287915885 -0.001025319296898657 0.5244457816654751</pose>
+            <inertial>
+                <mass>0.007952730726677395</mass>
+                <pose>1.394159477927189e-08 -0.0016857136439694118 -0.007940361075009152 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.498466970641472e-07</ixx>
+                    <iyy>5.513833006625167e-07</iyy>
+                    <izz>1.9734043484563972e-07</izz>
+                    <ixy>1.7760762213538445e-12</ixy>
+                    <iyz>-1.8217298744128085e-08</iyz>
+                    <ixz>2.2721702290773127e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5">
+            <pose>0.19283006376023193 0.026299999999999737 0.005923009906295072 0.8803478287896468 -0.0010253192970958362 -1.5699493207275728</pose>
+            <inertial>
+                <mass>0.007952730726693162</mass>
+                <pose>1.3941594401114877e-08 -0.0016857136439837601 -0.007940361075014698 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.498466970655378e-07</ixx>
+                    <iyy>5.513833006630682e-07</iyy>
+                    <izz>1.973404348466964e-07</izz>
+                    <ixy>1.7760761784517084e-12</ixy>
+                    <iyz>-1.8217298744424917e-08</iyz>
+                    <ixz>2.272168202990426e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6">
+            <pose>0.19283006376023018 -0.025700000000000243 0.005923009906292805 0.880347828789918 -0.0010253192970891788 -1.5699493207275823</pose>
+            <inertial>
+                <mass>0.007952730726720515</mass>
+                <pose>1.3941589364134353e-08 -0.0016857136440088308 -0.007940361075027588 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.498466970678474e-07</ixx>
+                    <iyy>5.513833006641207e-07</iyy>
+                    <izz>1.9734043484842063e-07</izz>
+                    <ixy>1.7760758716585876e-12</ixy>
+                    <iyz>-1.821729874516909e-08</iyz>
+                    <ixz>2.2721644569458578e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7">
+            <pose>-0.08080849853409383 -0.19256442514439823 -0.005923008048057617 2.261244824798534 0.0010253193002262334 -0.5227517695287852</pose>
+            <inertial>
+                <mass>0.007952730726710674</mass>
+                <pose>1.3941600536941926e-08 -0.0016857136439998653 -0.007940361075006074 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.498466970665839e-07</ixx>
+                    <iyy>5.513833006633809e-07</iyy>
+                    <izz>1.973404348477894e-07</izz>
+                    <ixy>1.7760765327921014e-12</ixy>
+                    <iyz>-1.8217298743896845e-08</iyz>
+                    <ixz>2.2721669214927528e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3">
+            <pose>-0.12584181953086995 -0.16656442514436873 -0.005923008048061469 2.2612448247985126 0.0010253193002965268 -0.522751769528759</pose>
+            <inertial>
+                <mass>0.007952730726701385</mass>
+                <pose>1.3941589865390664e-08 -0.0016857136439913465 -0.007940361075022525 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.49846697066361e-07</ixx>
+                    <iyy>5.513833006635014e-07</iyy>
+                    <izz>1.973404348472348e-07</izz>
+                    <ixy>1.7760759011978277e-12</ixy>
+                    <iyz>-1.821729874487612e-08</iyz>
+                    <ixz>2.272166971408967e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="forearm_2">
+            <pose>0.03568441088333302 0.02595687962738477 -0.19890769113421874 0.001329924316519346 -0.6904480637793583 -3.1415926535897927</pose>
+            <inertial>
+                <mass>0.009837659078398621</mass>
+                <pose>-4.163336342344337e-17 1.3261147822213326e-16 0.12650000000000045 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>5.249618045915556e-05</ixx>
+                    <iyy>5.249618045916111e-05</iyy>
+                    <izz>4.257426011568933e-08</izz>
+                    <ixy>-2.1768084999945476e-19</ixy>
+                    <iyz>2.209167805557622e-19</iyz>
+                    <ixz>-7.453889935837843e-20</ixz>
+                </inertia>
+            </inertial>
+            <visual name="forearm_2_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="forearm_2_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="forearm_1">
+            <pose>0.03568441088332965 -0.02604312037261326 -0.1989076911342238 0.0013299243166501505 -0.6904480637793607 -3.1415926535897927</pose>
+            <inertial>
+                <mass>0.009837659078398621</mass>
+                <pose>5.551115123125783e-16 1.7314640931957725e-14 0.12650000000000652 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>5.249618045929587e-05</ixx>
+                    <iyy>5.2496180459297e-05</iyy>
+                    <izz>4.257426011575032e-08</izz>
+                    <ixy>5.08716076720112e-19</ixy>
+                    <iyz>2.874374542771946e-17</iyz>
+                    <ixz>9.046311876675928e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="forearm_1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="forearm_1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="forearm_6">
+            <pose>0.0046371117175824355 -0.04388204615752365 -0.19890769113448387 -0.001329924320702842 0.6904480637777295 -2.0943951023936163</pose>
+            <inertial>
+                <mass>0.009837659078398621</mass>
+                <pose>-8.326672684688674e-17 -1.4829175214170487e-16 0.12649999999999956 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>5.249618045916132e-05</ixx>
+                    <iyy>5.2496180459159396e-05</iyy>
+                    <izz>4.257426011574404e-08</izz>
+                    <ixy>-6.417201017737384e-19</ixy>
+                    <iyz>-2.708321674396621e-19</iyz>
+                    <ixz>-1.7279472123987727e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="forearm_6_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="forearm_6_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="forearm_5">
+            <pose>-0.040396209279195565 -0.017882046157495085 -0.19890769113448656 -0.0013299243207074872 0.6904480637777219 -2.0943951023936105</pose>
+            <inertial>
+                <mass>0.009837659078398621</mass>
+                <pose>-2.706168622523819e-16 1.3823577699190182e-17 0.12650000000000033 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>5.249618045915906e-05</ixx>
+                    <iyy>5.249618045916149e-05</iyy>
+                    <izz>4.257426011574488e-08</izz>
+                    <ixy>1.7841491719380756e-18</ixy>
+                    <iyz>1.67752228225754e-20</iyz>
+                    <ixz>-4.573977915173222e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="forearm_5_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_5.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="forearm_5_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_5.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="forearm_4">
+            <pose>-0.040321522602209704 0.017925166530649482 -0.19890769113453682 0.001329924316246099 -0.6904480637774404 -1.047197551196592</pose>
+            <inertial>
+                <mass>0.009837659078398621</mass>
+                <pose>1.2906342661267445e-15 1.8673620592532525e-15 0.12650000000000186 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>5.249618045913172e-05</ixx>
+                    <iyy>5.24961804591432e-05</iyy>
+                    <izz>4.257426011574018e-08</izz>
+                    <ixy>-2.9720136187887255e-18</ixy>
+                    <iyz>3.0900688358122936e-18</iyz>
+                    <ixz>2.1480755542369057e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="forearm_4_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="forearm_4_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_4.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="forearm_3">
+            <pose>0.004711798394571272 0.04392516653065313 -0.19890769113453968 0.001329924316210749 -0.6904480637774533 -1.0471975511965894</pose>
+            <inertial>
+                <mass>0.009837659078398621</mass>
+                <pose>6.25888230132432e-15 -1.9790755406007277e-16 0.12649999999999995 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>5.2496180459162574e-05</ixx>
+                    <iyy>5.2496180459154246e-05</iyy>
+                    <izz>4.257426011573715e-08</izz>
+                    <ixy>-1.6252444675441888e-19</ixy>
+                    <iyz>-3.073869330696055e-19</iyz>
+                    <ixz>1.0428669646594946e-17</ixz>
+                </inertia>
+            </inertial>
+            <visual name="forearm_3_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="forearm_3_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/forearm_3.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_10_threaded_female-v1-6">
+            <pose>-0.040321522602209836 0.017925166530649354 -0.19890769113453677 1.572126251111127 -0.6904480637774307 -1.047197551196592</pose>
+            <inertial>
+                <mass>0.00812801196735934</mass>
+                <pose>0.0013303137279774553 -0.0032261510164443646 1.467046152445055e-08 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>2.0867096582366017e-07</ixx>
+                    <iyy>5.560285514121937e-07</iyy>
+                    <izz>6.606526350151128e-07</izz>
+                    <ixy>1.9169469567432148e-08</ixy>
+                    <iyz>-1.8996111254253733e-12</iyz>
+                    <ixz>2.408666182193445e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_10_threaded_female-v1-6_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_10_threaded_female-v1-6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_10_threaded_female-v1-6_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_10_threaded_female-v1-6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="pivot_arm_4_pivot_joint-v1-6">
+            <pose>0.03250000022347031 -0.010049769992334047 -0.2027624914243847 1.570796326794712 0.690448063779079 4.673199755158747e-16</pose>
+            <inertial>
+                <mass>0.005676188885492343</mass>
+                <pose>-8.165098068165626e-15 -4.487522486971129e-14 -0.009622552613183092 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5937173262752752e-06</ixx>
+                    <iyy>1.7808708928032041e-06</iyy>
+                    <izz>2.7891688475883134e-07</izz>
+                    <ixy>1.6940658945086007e-21</ixy>
+                    <iyz>3.003916649179957e-19</iyz>
+                    <ixz>3.979715106045761e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="pivot_arm_4_pivot_joint-v1-6_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_4_pivot_joint-v1-6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="pivot_arm_4_pivot_joint-v1-6_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_4_pivot_joint-v1-6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="pivot_arm_6_pivot_joint-v1-8">
+            <pose>-0.024953356228316306 -0.02312094082007 -0.20276249142460526 -1.570796326794873 -0.6904480637777284 1.0471975511961893</pose>
+            <inertial>
+                <mass>0.005676188885440516</mass>
+                <pose>2.781094523714314e-14 -1.249832862717111e-14 -0.009622552613386551 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5937173262673622e-06</ixx>
+                    <iyy>1.7808708927952562e-06</iyy>
+                    <izz>2.7891688475836663e-07</izz>
+                    <ixy>-6.45862622281404e-21</ixy>
+                    <iyz>8.13122596684145e-20</iyz>
+                    <ixz>3.713734266866231e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="pivot_arm_6_pivot_joint-v1-8_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_6_pivot_joint-v1-8.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="pivot_arm_6_pivot_joint-v1-8_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_6_pivot_joint-v1-8.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="pivot_arm_5_pivot_joint-v1-10">
+            <pose>-0.007546643996336615 0.03317071081281049 -0.20276249142451894 1.570796326795111 0.6904480637782372 2.094395102393204</pose>
+            <inertial>
+                <mass>0.005676188885471077</mass>
+                <pose>1.6147545220533844e-14 -3.385269157027782e-16 -0.009622552613266964 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.5937173262720452e-06</ixx>
+                    <iyy>1.7808708927999803e-06</iyy>
+                    <izz>2.7891688475866384e-07</izz>
+                    <ixy>4.870439446712227e-21</ixy>
+                    <iyz>-2.6225306439471826e-20</iyz>
+                    <ixz>3.593223663786008e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="pivot_arm_5_pivot_joint-v1-10_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_5_pivot_joint-v1-10.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="pivot_arm_5_pivot_joint-v1-10_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/pivot_arm_5_pivot_joint-v1-10.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_11_threaded_female-v1-7">
+            <pose>-0.04039620927919561 -0.017882046157495165 -0.19890769113448667 1.5694664024741976 0.6904480637777197 -2.09439510239361</pose>
+            <inertial>
+                <mass>0.008128011967359327</mass>
+                <pose>0.0013303137279774835 -0.0032261510164443914 1.4670461504194181e-08 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>2.0867096582363544e-07</ixx>
+                    <iyy>5.560285514121989e-07</iyy>
+                    <izz>6.606526350151245e-07</izz>
+                    <ixy>1.9169469567314714e-08</ixy>
+                    <iyz>-1.899611109868639e-12</iyz>
+                    <ixz>2.408666293621911e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_11_threaded_female-v1-7_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_11_threaded_female-v1-7.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_11_threaded_female-v1-7_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_11_threaded_female-v1-7.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap12_threaded_female-v1-8">
+            <pose>0.004637111717582413 -0.04388204615752363 -0.19890769113448387 1.5694664024741947 0.6904480637777277 -2.0943951023936163</pose>
+            <inertial>
+                <mass>0.008128011967359274</mass>
+                <pose>0.0013303137279776405 -0.003226151016444325 1.4670461494800586e-08 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>2.086709658236567e-07</ixx>
+                    <iyy>5.560285514122327e-07</iyy>
+                    <izz>6.606526350151776e-07</izz>
+                    <ixy>1.9169469567343196e-08</ixy>
+                    <iyz>-1.8996111007882123e-12</iyz>
+                    <ixz>2.408666250327278e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap12_threaded_female-v1-8_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap12_threaded_female-v1-8.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap12_threaded_female-v1-8_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap12_threaded_female-v1-8.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_7_threaded_female-v1-11">
+            <pose>0.03568441088332956 -0.02604312037261171 -0.19890769113422369 1.5721262511112757 -0.6904480637793539 -3.1415926535897927</pose>
+            <inertial>
+                <mass>0.007952730726697773</mass>
+                <pose>0.0013596249896327963 -0.0033142789383795094 1.3941607044361482e-08 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.973405318820358e-07</ixx>
+                    <iyy>5.513825713571762e-07</iyy>
+                    <izz>6.49846064795317e-07</izz>
+                    <ixy>1.821719293538385e-08</ixy>
+                    <iyz>-1.7760759756170444e-12</iyz>
+                    <ixz>2.2721539337508188e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_7_threaded_female-v1-11_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_7_threaded_female-v1-11.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_7_threaded_female-v1-11_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_7_threaded_female-v1-11.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_8_threaded_female-v1-9">
+            <pose>0.03568441088333299 0.025956879627384778 -0.19890769113421874 1.5721262511114156 -0.6904480637793584 -3.1415926535897927</pose>
+            <inertial>
+                <mass>0.007952730726697823</mass>
+                <pose>0.0013596249896327365 -0.0033142789383793112 1.3941608148986889e-08 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.9734053188170488e-07</ixx>
+                    <iyy>5.513825713570958e-07</iyy>
+                    <izz>6.498460647945397e-07</izz>
+                    <ixy>1.8217192935441844e-08</ixy>
+                    <iyz>-1.7760761316386624e-12</iyz>
+                    <ixz>2.2721539519948042e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_8_threaded_female-v1-9_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_8_threaded_female-v1-9.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_8_threaded_female-v1-9_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_8_threaded_female-v1-9.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="rod_cap_9_threaded_female-v1-10">
+            <pose>0.004711798394571185 0.043925166530652975 -0.19890769113453968 1.572126251111109 -0.6904480637774045 -1.0471975511965894</pose>
+            <inertial>
+                <mass>0.00812801196735902</mass>
+                <pose>0.0013303137279784341 -0.003226151016443273 1.4670463189091367e-08 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>2.0867096582361922e-07</ixx>
+                    <iyy>5.560285514121667e-07</iyy>
+                    <izz>6.606526350150747e-07</izz>
+                    <ixy>1.9169469567734525e-08</ixy>
+                    <iyz>-1.899611064955317e-12</iyz>
+                    <ixz>2.4086706641498433e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="rod_cap_9_threaded_female-v1-10_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_9_threaded_female-v1-10.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="rod_cap_9_threaded_female-v1-10_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/rod_cap_9_threaded_female-v1-10.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="end_effector-v2">
+            <pose>-3.6694708580181027e-13 -5.791553258131845e-14 -0.20276249142450614 -1.5707963267948686 -3.775269280152362e-13 -1.5707963267950251</pose>
+            <inertial>
+                <mass>0.062100531969302875</mass>
+                <pose>1.846036786671743e-13 0.0007477904342136197 -3.198620773223005e-13 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.8996250595653426e-05</ixx>
+                    <iyy>3.0449052400111257e-05</iyy>
+                    <izz>1.9011029793084867e-05</izz>
+                    <ixy>8.494056968410082e-18</ixy>
+                    <iyz>-1.4927807096979903e-17</iyz>
+                    <ixz>-2.871409944311675e-14</ixz>
+                </inertia>
+            </inertial>
+            <visual name="end_effector-v2_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/end_effector-v2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="end_effector-v2_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/end_effector-v2.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_base_plate_end_effector-v1">
+            <pose>-3.66181620976358e-13 -6.830046633147526e-14 -0.23026249142450617 -1.570796326794519 2.7920265973540455e-14 3.1415926535896648</pose>
+            <inertial>
+                <mass>0.025921258504140645</mass>
+                <pose>-7.916282357740464e-06 -0.0002847320663417106 6.7753118923366055e-09 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>3.485753127815871e-06</ixx>
+                    <iyy>1.0518750146969134e-05</iyy>
+                    <izz>7.62597181257511e-06</izz>
+                    <ixy>5.84270065464121e-11</ixy>
+                    <iyz>9.229640904486318e-13</iyz>
+                    <ixz>-1.39029601589563e-15</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_base_plate_end_effector-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_base_plate_end_effector-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_base_plate_end_effector-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_base_plate_end_effector-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_end_effector_side_plate-v1">
+            <pose>-0.0346000000003655 -7.330570866405336e-14 -0.2552624914245073 -1.570796326794519 2.792026597354047e-14 3.1415926535896648</pose>
+            <inertial>
+                <mass>0.022597419423661273</mass>
+                <pose>-0.0001612177050189173 -0.0008145205514591277 1.2223341860648248e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.0070887077865204e-05</ixx>
+                    <iyy>3.368494231093017e-06</iyy>
+                    <izz>7.079725368086679e-06</izz>
+                    <ixy>-1.8768434113200162e-08</ixy>
+                    <iyz>6.0120832639621245e-18</iyz>
+                    <ixz>-2.5222929370573583e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_end_effector_side_plate-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_side_plate-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_end_effector_side_plate-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_side_plate-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_end_effector_side_plate-v1-1">
+            <pose>0.034599999999634534 -8.219097919145612e-14 -0.2552624914245052 -1.5707963267952743 -2.792026597354046e-14 -1.2825019433091106e-13</pose>
+            <inertial>
+                <mass>0.022597419423661277</mass>
+                <pose>-0.00016121770501891622 -0.0008145205514591019 1.2212521563574412e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.0070887077865201e-05</ixx>
+                    <iyy>3.3684942310930237e-06</iyy>
+                    <izz>7.079725368086249e-06</izz>
+                    <ixy>-1.8768434113228535e-08</ixy>
+                    <iyz>6.0129338666995994e-18</iyz>
+                    <ixz>-2.5052368945177017e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_end_effector_side_plate-v1-1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_side_plate-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_end_effector_side_plate-v1-1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_side_plate-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1">
+            <pose>-0.03700000000036535 -7.488066537816813e-14 -0.2602624914245073 -2.7920265973540392e-14 3.774877300621672e-13 1.5707963267947682</pose>
+            <inertial>
+                <mass>0.06205999879006312</mass>
+                <pose>5.440072487533238e-15 0.00795948162757361 0.005563368804401614 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.988442842844299e-06</ixx>
+                    <iyy>3.6553944820485586e-06</iyy>
+                    <izz>4.7934769497030256e-06</izz>
+                    <ixy>5.20881887690237e-18</ixy>
+                    <iyz>-3.479279751288407e-08</iyz>
+                    <ixz>2.054868248794087e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1">
+            <pose>-0.025900000000365353 -7.630342159062502e-14 -0.260262491424507 -1.570796326794519 3.175268337184794e-14 3.141592653589665</pose>
+            <inertial>
+                <mass>0.0039017949297462306</mass>
+                <pose>0.001249797004900535 -1.6222134567232764e-13 1.4897308119534803e-18 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.4960205895110219e-07</ixx>
+                    <iyy>7.820278679498015e-08</iyy>
+                    <izz>7.820278739942963e-08</izz>
+                    <ixy>1.7049386781886001e-19</ixy>
+                    <iyz>-4.3576253721111484e-23</iyz>
+                    <ixz>7.523528757473368e-23</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1">
+            <pose>0.03699999999963469 -8.431863744844608e-14 -0.2602624914245052 2.7920265973540386e-14 -3.7785512410191165e-13 -1.5707963267950251</pose>
+            <inertial>
+                <mass>0.06205999879006312</mass>
+                <pose>5.440919884315317e-15 0.007959481627573607 0.005563368804401631 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.988442842845163e-06</ixx>
+                    <iyy>3.655394482049421e-06</iyy>
+                    <izz>4.793476949703058e-06</izz>
+                    <ixy>5.211339440509584e-18</ixy>
+                    <iyz>-3.479279751282113e-08</iyz>
+                    <ixz>2.053697539489442e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1">
+            <pose>0.02589999999963471 -8.289335810568281e-14 -0.2602624914245055 -1.5707963267952745 -3.219270264403766e-14 -1.2897941894497195e-13</pose>
+            <inertial>
+                <mass>0.0039017949297462306</mass>
+                <pose>0.0012497970049005348 -1.622119909634578e-13 1.2469089650196687e-18 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.4960205895115634e-07</ixx>
+                    <iyy>7.820278679498025e-08</iyy>
+                    <izz>7.820278739942979e-08</izz>
+                    <ixy>1.683419393865418e-19</ixy>
+                    <iyz>-4.583138977911326e-23</iyz>
+                    <ixz>2.9791196117973993e-23</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion">
+            <pose>0.02799999999963471 -8.316420031379e-14 -0.2602624914245054 1.5707963267947676 -1.5707963267945175 0</pose>
+            <inertial>
+                <mass>0.003157687504521257</mass>
+                <pose>-5.365483655606078e-09 0.008071697510068476 -1.9417273873692396e-09 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.2058613504333728e-07</ixx>
+                    <iyy>1.2922906780614413e-07</iyy>
+                    <izz>1.2058567289965568e-07</izz>
+                    <ixy>-6.497217694519726e-14</ixy>
+                    <iyz>1.0051734377178594e-13</iyz>
+                    <ixz>3.427645062296904e-14</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1">
+            <pose>-0.028000000000365354 -7.60317034335353e-14 -0.2602624914245071 -1.570796326795025 -1.5707963267945175 0</pose>
+            <inertial>
+                <mass>0.003157687504521257</mass>
+                <pose>-5.365483602992819e-09 0.008071697510068481 -1.941727390897779e-09 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.2058613504333638e-07</ixx>
+                    <iyy>1.292290678062797e-07</iyy>
+                    <izz>1.205856728998992e-07</izz>
+                    <ixy>-6.497217749254005e-14</ixy>
+                    <iyz>1.0051734357264383e-13</iyz>
+                    <ixz>3.4276450701045075e-14</ixz>
+                </inertia>
+            </inertial>
+            <visual name="waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="middle_shaft-v1_638_8-2z-v1">
+            <pose>-3.651639964929161e-13 -8.181416655261836e-14 -0.26626249146920955 -1.5707963267947676 1.5707963267945177 0</pose>
+            <inertial>
+                <mass>0.0042245001059278385</mass>
+                <pose>0.0030000000000000317 2.775491133508548e-14 -4.126050668612324e-18 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.7929464709754718e-07</ixx>
+                    <iyy>1.0154205731674817e-07</iyy>
+                    <izz>1.0154205773790818e-07</izz>
+                    <ixy>3.4560762585123527e-19</ixy>
+                    <iyz>8.715250737176749e-23</iyz>
+                    <ixz>7.843725668811945e-23</ixz>
+                </inertia>
+            </inertial>
+            <visual name="middle_shaft-v1_638_8-2z-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_638_8-2z-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="middle_shaft-v1_638_8-2z-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_638_8-2z-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="middle_shaft-v1_skf_bearing_hk_0609_2-v1">
+            <pose>-0.015000000000365332 -7.762679388179095e-14 -0.2602624914245066 -1.5707963267952745 -2.7943204856958082e-14 -1.2905407323347792e-13</pose>
+            <inertial>
+                <mass>0.0026125207978808618</mass>
+                <pose>0.00449999999999998 -3.830699529735555e-13 -3.595491855512174e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>4.631826349242997e-08</ixx>
+                    <iyy>3.919142918816448e-08</iyy>
+                    <izz>3.919142746981426e-08</izz>
+                    <ixy>-6.613335852145246e-19</ixy>
+                    <iyz>5.447035312960991e-23</iyz>
+                    <ixz>-3.7567959854099696e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="middle_shaft-v1_skf_bearing_hk_0609_2-v1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_skf_bearing_hk_0609_2-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="middle_shaft-v1_skf_bearing_hk_0609_2-v1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_skf_bearing_hk_0609_2-v1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="middle_shaft-v1_skf_bearing_hk_0609_2-v1-1">
+            <pose>0.0059999999996346665 -8.036238341446733e-14 -0.26026249142450597 -1.5707963267952745 -2.7992199224913538e-14 -1.2901099050113916e-13</pose>
+            <inertial>
+                <mass>0.0026125207978808618</mass>
+                <pose>0.00449999999999998 -3.8306973249889954e-13 -3.595491855512169e-14 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>4.6318263492402863e-08</ixx>
+                    <iyy>3.9191429188164284e-08</iyy>
+                    <izz>3.919142746976001e-08</izz>
+                    <ixy>-6.604862030925286e-19</ixy>
+                    <iyz>5.447035315659098e-23</iyz>
+                    <ixz>-3.7567959854099278e-19</ixz>
+                </inertia>
+            </inertial>
+            <visual name="middle_shaft-v1_skf_bearing_hk_0609_2-v1-1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_skf_bearing_hk_0609_2-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="middle_shaft-v1_skf_bearing_hk_0609_2-v1-1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_skf_bearing_hk_0609_2-v1-1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="middle_shaft-v1_Component164">
+            <pose>-3.6513607622694235e-13 -8.22986123694136e-14 -0.2672624914692098 -1.5707963267952745 -2.792026597354047e-14 -1.2905407323337558e-13</pose>
+            <inertial>
+                <mass>0.01624550778737804</mass>
+                <pose>1.3077325780074283e-10 -0.00477797635983379 9.366956346763709e-12 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>1.0369267537928967e-06</ixx>
+                    <iyy>1.4572444410669632e-06</iyy>
+                    <izz>1.2758195299109858e-06</izz>
+                    <ixy>4.481612337104151e-15</ixy>
+                    <iyz>1.7811169794086787e-15</iyz>
+                    <ixz>-5.880678146819965e-13</ixz>
+                </inertia>
+            </inertial>
+            <visual name="middle_shaft-v1_Component164_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_Component164.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="middle_shaft-v1_Component164_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/middle_shaft-v1_Component164.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear">
+            <pose>-3.650394655190598e-13 -8.365752535155479e-14 -0.27076249146920967 1.5707963267945189 -2.7920265973605095e-14 -1.2905407323337556e-13</pose>
+            <inertial>
+                <mass>0.07862022815207503</mass>
+                <pose>4.45450569100513e-07 -0.007596568437013039 -4.90799536701364e-07 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>8.423999604524612e-06</ixx>
+                    <iyy>1.144768525702202e-05</iyy>
+                    <izz>8.424448832405198e-06</izz>
+                    <ixy>-2.8625229959319834e-10</ixy>
+                    <iyz>3.187193373792241e-10</iyz>
+                    <ixz>3.099950758329454e-10</ixz>
+                </inertia>
+            </inertial>
+            <visual name="end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <link name="cube-v6">
+            <pose>-3.632738554415482e-13 -9.791945032588956e-14 -0.30851249146920984 3.778088952799374e-13 5.5840531947161564e-14 3.1415926535896643</pose>
+            <inertial>
+                <mass>0.2190086521864867</mass>
+                <pose>-0.0007571147448307052 -0.0004725953633605644 0.00028984668097712914 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>6.725551979614924e-05</ixx>
+                    <iyy>6.782851202234727e-05</iyy>
+                    <izz>6.74186794018338e-05</izz>
+                    <ixy>8.080306097808026e-08</ixy>
+                    <iyz>2.2480222406133124e-07</iyz>
+                    <ixz>-1.1044106726896244e-07</ixz>
+                </inertia>
+            </inertial>
+            <visual name="cube-v6_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/cube-v6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </visual>
+            <collision name="cube-v6_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://Delta_robot/meshes/cube-v6.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="delta_base-v1_Rigid-1" type="fixed">
+            <pose>-1.2899514229697262e-07 -1.9539925233402755e-16 0.017999776573859493 0.0 0.0 0.0</pose>
+            <parent>delta_base-v1</parent>
+            <child>servo_setup_v8_1_servo_mount2</child>
+        </joint>
+        <joint name="delta_base-v1_Rigid-2" type="fixed">
+            <pose>-1.4259426972529334e-17 -1.9487374956493383e-16 0.017999999999999884 0.0 0.0 0.0</pose>
+            <parent>delta_base-v1</parent>
+            <child>servo_setup_v8_2_servo_mount1</child>
+        </joint>
+        <joint name="delta_base-v1_Rigid-3" type="fixed">
+            <pose>1.2899514232125875e-07 -1.9487377712709412e-16 0.017999776573859445 0.0 0.0 0.0</pose>
+            <parent>delta_base-v1</parent>
+            <child>servo_setup_v8_3_servo_mount3</child>
+        </joint>
+        <joint name="pivot_arm_2_pivot_joint-v1_Revolute-16" type="revolute">
+            <pose>2.882151785243294e-07 8.178546667373972e-08 -1.1502138303268906e-07 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_2_pivot_joint-v1</parent>
+            <child>rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8</child>
+            <axis>
+                <xyz expressed_in="__model__">0.38548 -0.667672 0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_1_bicep2_Revolute-8" type="revolute">
+            <pose>3.679459211450823e-08 -3.160076581973185e-08 -0.0039999250185091045 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_1_bicep2</parent>
+            <child>pivot_arm_2_pivot_joint-v1</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.866025 -0.5 -0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_3_bicep3_Revolute-9" type="revolute">
+            <pose>-6.759922087930746e-08 5.704815052619249e-08 -0.00400000577539516 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_3_bicep3</parent>
+            <child>pivot_arm_3_pivot_joint-v1-2</child>
+            <axis>
+                <xyz expressed_in="__model__">0.866025 -0.5 -0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_2_bicep1_Revolute-10" type="revolute">
+            <pose>-1.7221722452146069e-09 2.1753499045882175e-10 -0.003999999999999946 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_2_bicep1</parent>
+            <child>pivot_arm_1_pivot_joint-v1-4</child>
+            <axis>
+                <xyz expressed_in="__model__">0.0 1.0 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_2_pivot_joint-v1_Revolute-11" type="revolute">
+            <pose>5.660703647487947e-07 -2.080279061080947e-08 8.716575992785514e-09 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_2_pivot_joint-v1</parent>
+            <child>rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4</child>
+            <axis>
+                <xyz expressed_in="__model__">0.38548 -0.667672 0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_1_pivot_joint-v1-4_Revolute-12" type="revolute">
+            <pose>-6.416264584956353e-11 -4.8245109549622386e-08 4.284748703484116e-08 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_1_pivot_joint-v1-4</parent>
+            <child>rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.770961 -0.0 0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_1_pivot_joint-v1-4_Revolute-13" type="revolute">
+            <pose>-6.41626212264579e-11 -4.824510668799926e-08 4.28474871307447e-08 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_1_pivot_joint-v1-4</parent>
+            <child>rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.770961 0.0 0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_3_pivot_joint-v1-2_Revolute-14" type="revolute">
+            <pose>2.1968553116133941e-07 -3.8674849934999274e-07 -4.811576029953203e-07 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_3_pivot_joint-v1-2</parent>
+            <child>rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.38548 -0.667672 -0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_3_pivot_joint-v1-2_Revolute-15" type="revolute">
+            <pose>-3.6863553497313323e-07 -1.71308013442441e-07 -2.1941517575485457e-07 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_3_pivot_joint-v1-2</parent>
+            <child>rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.38548 -0.667672 -0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5_Rigid-16" type="fixed">
+            <pose>-4.4551660585701036e-07 3.5052332280412647e-07 0.2530001073251691 0.0 0.0 0.0</pose>
+            <parent>rod_cap_2_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-5</parent>
+            <child>forearm_2</child>
+        </joint>
+        <joint name="rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6_Rigid-17" type="fixed">
+            <pose>-4.4551660460800946e-07 3.5052335721141793e-07 0.2530001073251812 0.0 0.0 0.0</pose>
+            <parent>rod_cap_1_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-6</parent>
+            <child>forearm_1</child>
+        </joint>
+        <joint name="rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7_Rigid-18" type="fixed">
+            <pose>1.1244798925336141e-07 8.637618805669716e-08 0.25299983276143323 0.0 0.0 0.0</pose>
+            <parent>rod_cap_6_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-7</parent>
+            <child>forearm_6</child>
+        </joint>
+        <joint name="rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3_Rigid-19" type="fixed">
+            <pose>-1.1289946380554916e-08 3.6450326359807063e-07 0.2529997309126046 0.0 0.0 0.0</pose>
+            <parent>rod_cap_5_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-3</parent>
+            <child>forearm_5</child>
+        </joint>
+        <joint name="rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4_Rigid-20" type="fixed">
+            <pose>-5.704436078779462e-07 -2.4174409198884374e-07 0.2530002113138493 0.0 0.0 0.0</pose>
+            <parent>rod_cap_4_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-4</parent>
+            <child>forearm_4</child>
+        </joint>
+        <joint name="rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8_Rigid-21" type="fixed">
+            <pose>-3.0870119221981795e-07 3.4600185258262155e-07 0.2529999943093014 0.0 0.0 0.0</pose>
+            <parent>rod_cap_3_Broached-Hexagon-Socket-Head-Cap-Screw-ASME-B18.3.1M---M5x0.8-x-25-Steel-Grade-2-Plain-v1-8</parent>
+            <child>forearm_3</child>
+        </joint>
+        <joint name="forearm_1_Rigid-42" type="fixed">
+            <pose>1.2006364587185566e-07 -4.996473338932264e-07 1.2103721169040758e-07 0.0 0.0 0.0</pose>
+            <parent>forearm_1</parent>
+            <child>rod_cap_7_threaded_female-v1-11</child>
+        </joint>
+        <joint name="forearm_2_Rigid-43" type="fixed">
+            <pose>1.200636453680158e-07 -4.996473398805782e-07 1.210372152129619e-07 0.0 0.0 0.0</pose>
+            <parent>forearm_2</parent>
+            <child>rod_cap_8_threaded_female-v1-9</child>
+        </joint>
+        <joint name="forearm_3_Rigid-44" type="fixed">
+            <pose>-7.808346241404017e-09 -3.9429483548050907e-07 -9.080579457567723e-08 0.0 0.0 0.0</pose>
+            <parent>forearm_3</parent>
+            <child>rod_cap_9_threaded_female-v1-10</child>
+        </joint>
+        <joint name="forearm_4_Rigid-45" type="fixed">
+            <pose>-2.695507586371458e-07 -1.7729028955858976e-07 4.96940160732765e-07 0.0 0.0 0.0</pose>
+            <parent>forearm_4</parent>
+            <child>rod_cap_10_threaded_female-v1-6</child>
+        </joint>
+        <joint name="forearm_5_Rigid-46" type="fixed">
+            <pose>8.522002957473297e-08 -3.3001416367685904e-07 -1.586013862925203e-07 0.0 0.0 0.0</pose>
+            <parent>forearm_5</parent>
+            <child>rod_cap_11_threaded_female-v1-7</child>
+        </joint>
+        <joint name="forearm_6_Rigid-47" type="fixed">
+            <pose>2.0895796724570893e-07 -2.2816533427267317e-07 1.1952568939883175e-07 0.0 0.0 0.0</pose>
+            <parent>forearm_6</parent>
+            <child>rod_cap12_threaded_female-v1-8</child>
+        </joint>
+        <joint name="rod_cap_9_threaded_female-v1-10_Revolute-48" type="revolute">
+            <pose>-0.009300655203441864 8.451742778466803e-08 0.01600005137818656 0.0 0.0 0.0</pose>
+            <parent>rod_cap_9_threaded_female-v1-10</parent>
+            <child>pivot_arm_5_pivot_joint-v1-10</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.38548 0.667672 -0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="rod_cap_7_threaded_female-v1-11_Revolute-49" type="revolute">
+            <pose>-0.009300357721628214 3.3026388966857223e-07 0.016000230007665955 0.0 0.0 0.0</pose>
+            <parent>rod_cap_7_threaded_female-v1-11</parent>
+            <child>pivot_arm_4_pivot_joint-v1-6</child>
+            <axis>
+                <xyz expressed_in="__model__">0.770961 0.0 -0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="rod_cap_11_threaded_female-v1-7_Revolute-50" type="revolute">
+            <pose>-0.009300230963191025 4.5722402214603414e-07 0.01600037700006878 0.0 0.0 0.0</pose>
+            <parent>rod_cap_11_threaded_female-v1-7</parent>
+            <child>pivot_arm_6_pivot_joint-v1-8</child>
+            <axis>
+                <xyz expressed_in="__model__">0.38548 0.667672 0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="rod_cap_10_threaded_female-v1-6_Revolute-61" type="revolute">
+            <pose>-0.009300393461037173 3.0074011064720046e-07 -0.03600053665584191 0.0 0.0 0.0</pose>
+            <parent>rod_cap_10_threaded_female-v1-6</parent>
+            <child>pivot_arm_5_pivot_joint-v1-10</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.38548 0.667672 -0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="rod_cap12_threaded_female-v1-8_Revolute-63" type="revolute">
+            <pose>-0.0092999692207703 6.734467282252382e-07 -0.03600021103395963 0.0 0.0 0.0</pose>
+            <parent>rod_cap12_threaded_female-v1-8</parent>
+            <child>pivot_arm_6_pivot_joint-v1-8</child>
+            <axis>
+                <xyz expressed_in="__model__">0.38548 0.667672 0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="rod_cap_8_threaded_female-v1-9_Revolute-64" type="revolute">
+            <pose>-0.009300357721628195 3.3026389928414446e-07 -0.035999769992334056 0.0 0.0 0.0</pose>
+            <parent>rod_cap_8_threaded_female-v1-9</parent>
+            <child>pivot_arm_4_pivot_joint-v1-6</child>
+            <axis>
+                <xyz expressed_in="__model__">0.770961 0.0 -0.636883</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_6_pivot_joint-v1-8_Revolute-65" type="revolute">
+            <pose>0.029270999999943897 -4.914244954916404e-07 -0.01430099999962929 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_6_pivot_joint-v1-8</parent>
+            <child>end_effector-v2</child>
+            <axis>
+                <xyz expressed_in="__model__">0.866025 -0.5 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_4_pivot_joint-v1-6_Revolute-66" type="revolute">
+            <pose>-0.002250000000062089 -4.914245060806759e-07 0.03250000000036666 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_4_pivot_joint-v1-6</parent>
+            <child>end_effector-v2</child>
+            <axis>
+                <xyz expressed_in="__model__">0.0 1.0 -0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="pivot_arm_5_pivot_joint-v1-10_Revolute-67" type="revolute">
+            <pose>-0.027021000000055553 -4.914245168591183e-07 -0.018198999999636527 0.0 0.0 0.0</pose>
+            <parent>pivot_arm_5_pivot_joint-v1-10</parent>
+            <child>end_effector-v2</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.866025 -0.5 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="end_effector-v2_Rigid-68" type="fixed">
+            <pose>-3.6660043868665513e-13 -0.01500049142450616 -6.263612784348759e-14 0.0 0.0 0.0</pose>
+            <parent>end_effector-v2</parent>
+            <child>waveshare_assembly-v1_base_plate_end_effector-v1</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1_Revolute-69" type="revolute">
+            <pose>0.008000000000365333 -4.914245063643598e-07 7.865904074859891e-14 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1</parent>
+            <child>middle_shaft-v1_skf_bearing_hk_0609_2-v1</child>
+            <axis>
+                <xyz expressed_in="__model__">1.0 -0.0 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="middle_shaft-v1_Component164_Revolute-70" type="revolute">
+            <pose>3.6499759884203967e-13 -0.0014995085307903384 -8.422405301308264e-14 0.0 0.0 0.0</pose>
+            <parent>middle_shaft-v1_Component164</parent>
+            <child>end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear</child>
+            <axis>
+                <xyz expressed_in="__model__">0.0 -0.0 -1.0</xyz>
+            </axis>
+        </joint>
+        <joint name="waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion_Revolute-71" type="revolute">
+            <pose>0.005500000000365333 -4.914245058233255e-07 8.107175819772262e-14 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion</parent>
+            <child>middle_shaft-v1_skf_bearing_hk_0609_2-v1-1</child>
+            <axis>
+                <xyz expressed_in="__model__">-1.0 0.0 -0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear_Rigid-74" type="fixed">
+            <pose>-3.6469781645009035e-13 -8.828513781485876e-14 0.02550049146920985 0.0 0.0 0.0</pose>
+            <parent>end_effector_big_gear-v3_6010N16_High-Power-Metal-Bevel-Gear</parent>
+            <child>cube-v6</child>
+        </joint>
+        <joint name="servo_setup_v8_1_servo_2_Revolute-1" type="revolute">
+            <pose>0.01249971386650657 0.014499451184543202 -3.4977351800491397e-17 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_1_servo_2</parent>
+            <child>servo_setup_v8_1_servo_2_Component4</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.866025 -0.5 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_1_servo_2_Revolute-2" type="revolute">
+            <pose>0.012500082221380748 -0.014499910806099216 2.5031415283646605e-16 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_1_servo_2</parent>
+            <child>servo_setup_v8_1_servo_2_Component5</child>
+            <axis>
+                <xyz expressed_in="__model__">0.866025 0.5 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_1_servo_2_Rigid-1" type="fixed">
+            <pose>0.015999412758353693 -0.010250000000000196 -0.013000204211265826 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_1_servo_2</parent>
+            <child>servo_setup_v8_1_servo_mount2</child>
+        </joint>
+        <joint name="servo_setup_v8_1_servo_2_Component4_Rigid-4" type="fixed">
+            <pose>-0.019199999956582565 0.012499010793880763 -9.291107463871176e-10 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_1_servo_2_Component4</parent>
+            <child>servo_setup_v8_1_bicep2</child>
+        </joint>
+        <joint name="servo_setup_v8_2_servo_1_Revolute-1" type="revolute">
+            <pose>0.012499500000000007 0.014500000000000058 -4.135986657897285e-17 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_2_servo_1</parent>
+            <child>servo_setup_v8_2_servo_1_Component20</child>
+            <axis>
+                <xyz expressed_in="__model__">0.0 1.0 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_2_servo_1_Revolute-2" type="revolute">
+            <pose>0.012499499999999815 -0.014499999999999942 2.4560327127626334e-16 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_2_servo_1</parent>
+            <child>servo_setup_v8_2_servo_1_Component21</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.0 -1.0 -0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_2_servo_1_Rigid-1" type="fixed">
+            <pose>0.015999999999999983 -0.010250000000000196 -0.013000000000000123 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_2_servo_1</parent>
+            <child>servo_setup_v8_2_servo_mount1</child>
+        </joint>
+        <joint name="servo_setup_v8_2_servo_1_Component20_Rigid-4" type="fixed">
+            <pose>-0.019200000000000054 0.01250000146627233 -9.291108482204245e-10 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_2_servo_1_Component20</parent>
+            <child>servo_setup_v8_2_bicep1</child>
+        </joint>
+        <joint name="servo_setup_v8_3_servo_3_Revolute-1" type="revolute">
+            <pose>0.012500082221380996 0.014499910806099425 1.386264832351494e-17 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_3_servo_3</parent>
+            <child>servo_setup_v8_3_servo_3_Component12</child>
+            <axis>
+                <xyz expressed_in="__model__">0.866025 -0.5 -0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_3_servo_3_Revolute-2" type="revolute">
+            <pose>0.01249971386650643 -0.014499451184543034 2.416690038943011e-16 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_3_servo_3</parent>
+            <child>servo_setup_v8_3_servo_3_Component13</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.866025 0.5 0.0</xyz>
+            </axis>
+        </joint>
+        <joint name="servo_setup_v8_3_servo_3_Rigid-1" type="fixed">
+            <pose>0.01599988323132069 -0.0102500000000002 -0.013000610671816898 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_3_servo_3</parent>
+            <child>servo_setup_v8_3_servo_mount3</child>
+        </joint>
+        <joint name="servo_setup_v8_3_servo_3_Component12_Rigid-4" type="fixed">
+            <pose>-0.019200008056237373 0.01249900616767715 -9.291107413959844e-10 0.0 0.0 0.0</pose>
+            <parent>servo_setup_v8_3_servo_3_Component12</parent>
+            <child>servo_setup_v8_3_bicep3</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1_Revolute-1" type="revolute">
+            <pose>0.023655999999633897 -0.022456491424507768 -6.478539363650132e-14 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1</parent>
+            <child>waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.0 0.0 1.0</xyz>
+            </axis>
+        </joint>
+        <joint name="waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1_Revolute-1" type="revolute">
+            <pose>0.023656000000365975 -0.02245649142450476 7.746303214682186e-14 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1</parent>
+            <child>waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1</child>
+            <axis>
+                <xyz expressed_in="__model__">-0.0 0.0 1.0</xyz>
+            </axis>
+        </joint>
+        <joint name="waveshare_assembly-v1_base_plate_end_effector-v1_Rigid-7" type="fixed">
+            <pose>-0.0049999999996357585 -0.02500049142451101 0.015000000000072115 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_base_plate_end_effector-v1</parent>
+            <child>waveshare_assembly-v1_end_effector_side_plate-v1-1</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_base_plate_end_effector-v1_Rigid-8" type="fixed">
+            <pose>-0.00500000000036812 -0.025000491424501493 0.014999999999935499 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_base_plate_end_effector-v1</parent>
+            <child>waveshare_assembly-v1_end_effector_side_plate-v1</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_end_effector_side_plate-v1_Rigid-9" type="fixed">
+            <pose>7.340119424508169e-14 -0.005500000000365505 0.005790491424507178 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_end_effector_side_plate-v1</parent>
+            <child>waveshare_assembly-v1_sts_assembly-v1_Feetech-STS2032-20g-v1</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_end_effector_side_plate-v1-1_Rigid-10" type="fixed">
+            <pose>-8.14242640981107e-14 -0.005499999999634522 0.005790491424505377 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_end_effector_side_plate-v1-1</parent>
+            <child>waveshare_assembly-v1_sts_assembly-v1-1_Feetech-STS2032-20g-v1-1</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1_Rigid-11" type="fixed">
+            <pose>4.914245054896376e-07 0.0020999999996347096 -8.289295384330449e-14 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_sts_assembly-v1-1_sts_circular_horn-v1-1</parent>
+            <child>waveshare_assembly-v1_end_effector_small_gear-v1_6010N15_High-Power-Metal-Bevel-Pinion</child>
+        </joint>
+        <joint name="waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1_Rigid-12" type="fixed">
+            <pose>4.914245070207717e-07 0.0021000000003653548 7.630031619739523e-14 0.0 0.0 0.0</pose>
+            <parent>waveshare_assembly-v1_sts_assembly-v1_sts_circular_horn-v1</parent>
+            <child>waveshare_assembly-v1_end_effector_small_gear-v1-1_6010N15_High-Power-Metal-Bevel-Pinion-1</child>
+        </joint>
+        <joint name="middle_shaft-v1_Component164_Rigid-1" type="fixed">
+            <pose>-0.4062624914692125 -3.7650075602375206e-13 -0.0010000000000717063 0.0 0.0 0.0</pose>
+            <parent>middle_shaft-v1_Component164</parent>
+            <child>middle_shaft-v1_638_8-2z-v1</child>
+        </joint>
+        <joint name="middle_shaft-v1_Component164_Rigid-2" type="fixed">
+            <pose>3.7742075934777135e-13 -0.40026249142450776 -0.007000000000073707 0.0 0.0 0.0</pose>
+            <parent>middle_shaft-v1_Component164</parent>
+            <child>middle_shaft-v1_skf_bearing_hk_0609_2-v1</child>
+        </joint>
+        <joint name="middle_shaft-v1_Component164_Rigid-3" type="fixed">
+            <pose>0.009000000000377442 -0.40026249142450676 -0.007000000000069762 0.0 0.0 0.0</pose>
+            <parent>middle_shaft-v1_Component164</parent>
+            <child>middle_shaft-v1_skf_bearing_hk_0609_2-v1-1</child>
+        </joint>
+    </model>
+</sdf>

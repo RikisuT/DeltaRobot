@@ -769,6 +769,8 @@ class DeltaRobotGui(QMainWindow):
         self.object_center_offset_spin.setRange(-0.2000, 0.2000)
         self.object_center_offset_spin.setSingleStep(0.0010)
         self.object_center_offset_spin.setValue(0.0)
+        # Fetch initial value from motion_planner parameter server
+        self._fetch_initial_object_center_offset()
         self.object_center_offset_spin.setSuffix(" m")
         self.object_center_offset_spin.setToolTip(
             "Offset from tool tip to object center (e.g., half object height for axial rotation)."
@@ -835,6 +837,27 @@ class DeltaRobotGui(QMainWindow):
         layout.addItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
         return tab
+
+    def _fetch_initial_object_center_offset(self):
+            # Wait for parameter service to be ready
+            if not self.node.wait_for_parameter_service(timeout_sec=1.0):
+                return
+            future = self.node.motion_planner_param_client.get_parameters([
+                "tool_tip_to_object_center_offset_m"
+            ])
+            def on_result():
+                if future.done():
+                    try:
+                        result = future.result()
+                        if result and hasattr(result, "values") and result.values:
+                            value = result.values[0].double_value
+                            self.object_center_offset_spin.setValue(value)
+                    except Exception:
+                        pass
+                else:
+                    # Try again if not done
+                    QTimer.singleShot(100, on_result)
+            QTimer.singleShot(100, on_result)
 
     def _build_gcode_tab(self) -> QWidget:
         tab = QWidget()
@@ -1291,9 +1314,9 @@ class DeltaRobotGui(QMainWindow):
         speed_row.setSpacing(10)
         speed_row.addWidget(QLabel("Playback speed (ms between points):"))
         self.playback_speed_spinbox = QSpinBox()
-        self.playback_speed_spinbox.setMinimum(50)
+        self.playback_speed_spinbox.setMinimum(10)
         self.playback_speed_spinbox.setMaximum(10000)
-        self.playback_speed_spinbox.setValue(100)
+        self.playback_speed_spinbox.setValue(50)
         self.playback_speed_spinbox.setMaximumWidth(100)
         speed_row.addWidget(self.playback_speed_spinbox)
         # Playback smoothing control (EMA alpha 0..1)

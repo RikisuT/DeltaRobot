@@ -14,7 +14,7 @@ from deltarobot_interfaces.srv import SetJointLimits
 from std_msgs.msg import Float32MultiArray, UInt8MultiArray, String
 
 # ST Servo Constants
-BAUDRATE = 500000
+BAUDRATE = 921600
 DEVICE_NAME = "/dev/ttyUSB0"
 MAX_ST_MOVING_SPEED = 0
 MAX_ST_MOVING_ACC = 0

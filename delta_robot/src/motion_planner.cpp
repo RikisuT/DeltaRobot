@@ -1041,7 +1041,7 @@ std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
   const float y_start = 0.0;
   const float y_end = 60.0;
   const float z_start = -380.0;
-  const float z_end = -240.0;
+  const float z_end = -320.0;
   const int num_points = 25;
 
   // X Axis Translation from (0, 0, -180) to (80, 0, -180)

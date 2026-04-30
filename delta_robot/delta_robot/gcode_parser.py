@@ -314,6 +314,10 @@ class GCodeParserNode(Node):
             delta = float(params[axis])
             if axis in {"X", "Y", "Z"}:
                 delta *= self.unit_scale_mm
+            elif axis in {"A", "C"}:
+                # G-code A/C tilt/spin are commonly specified in degrees;
+                # convert to radians for the motion planner API which expects radians.
+                delta = math.radians(delta)
             if self.mode_abs:
                 next_pos[axis] = delta
             else:
@@ -339,8 +343,18 @@ class GCodeParserNode(Node):
         dx = x_mm - x0
         dy = y_mm - y0
         dz = z_mm - z0
-        distance = math.sqrt(dx * dx + dy * dy + dz * dz)
-        duration_s = max(self.min_move_time_s, distance / self.speed_mm_s)
+        da = a_rad - a0
+        dc = c_rad - c0
+
+        distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+
+        # Angular "distance" scaled to a comparable speed
+        # Treat 1 rad of rotation as equivalent to some mm of travel
+        ANGULAR_SCALE_MM_PER_RAD = 50.0  # tune to your robot
+        angular_distance = math.sqrt(da*da + dc*dc) * ANGULAR_SCALE_MM_PER_RAD
+
+        effective_distance = max(distance, angular_distance)
+        duration_s = max(self.min_move_time_s, effective_distance / self.speed_mm_s)
         steps = max(1, int(math.ceil(duration_s * self.motion_rate_hz)))
         step_dt = duration_s / steps
 

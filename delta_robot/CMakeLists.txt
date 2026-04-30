@@ -84,7 +84,7 @@ install(PROGRAMS
   delta_robot/gcode_parser.py
   delta_robot/json_task_sequencer.py
   delta_robot/ee_tf_broadcaster.py
-  delta_robot/plot_tf_error.py
+  delta_robot/plot_ee_tf.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
