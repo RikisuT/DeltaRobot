@@ -54,10 +54,19 @@ def generate_launch_description():
                 ],
             ),
             Node(
-                package="delta_robot",
-                executable="motor_control_node.py",
+                package="delta_robot_drivers",
+                executable="motor_control_node",
                 name="delta_motor_control",
                 output="screen",
+                parameters=[
+                    PathJoinSubstitution(
+                        [
+                            get_package_share_directory("delta_robot"),
+                            "config",
+                            "delta_config.yaml",
+                        ]
+                    )
+                ],
             ),
             # Node(
             #     package="delta_robot",
@@ -65,12 +74,6 @@ def generate_launch_description():
             #     name="range_scanner",
             #     output="screen",
             # ),
-            Node(
-                package="delta_robot",
-                executable="delta_trajectory_generator",
-                name="trajectory_generator",
-                output="screen",
-            ),
             # IncludeLaunchDescription(
             #     AnyLaunchDescriptionSource(
             #         PathJoinSubstitution(

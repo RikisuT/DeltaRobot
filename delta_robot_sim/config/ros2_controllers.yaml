@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 200  # Hz
+    update_rate: 1000  # Hz — must be >> trajectory step rate for accurate PID tracking
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -27,6 +27,6 @@ joint_trajectory_controller:
       - velocity
 
     gains:
-      motor_joint_1: {p: 100.0, i: 1.0, d: 10.0}
-      motor_joint_2: {p: 100.0, i: 1.0, d: 10.0}
-      motor_joint_3: {p: 100.0, i: 1.0, d: 10.0}
+      motor_joint_1: {p: 5000.0, i: 1.0, d: 50.0}
+      motor_joint_2: {p: 5000.0, i: 1.0, d: 50.0}
+      motor_joint_3: {p: 5000.0, i: 1.0, d: 50.0}

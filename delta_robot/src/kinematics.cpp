@@ -34,16 +34,7 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "kinematics.hpp"
 #include <vector>
-#include <math.h>
 #include <limits>
-#include <eigen3/Eigen/Dense>
-
-const float sqrt3 = sqrt(3.0);
-const float sin120 = sqrt3 / 2.0;
-constexpr float cos120 = -0.5;
-const float tan60 = sqrt3;
-constexpr float sin30 = 0.5;
-const float tan30 = 1 / sqrt3;
 
 template<typename T>
 using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
@@ -62,16 +53,16 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   this->declare_parameter("max_joint_velocity", 1.0);
   this->declare_parameter("robot_config_freq", 10.0);
 
-  // Save parameters from yaml for easy access
-  this->SB = this->get_parameter("base_triangle_side_length").as_double();
-  this->SP = this->get_parameter("end_effector_side_length").as_double();
-  this->AL = this->get_parameter("active_link_length").as_double();
-  this->PL = this->get_parameter("passive_link_length").as_double();
-  this->PW = this->get_parameter("passive_link_width").as_double();
-  this->JMin = this->get_parameter("joint_min").as_double();
-  this->JMax = this->get_parameter("joint_max").as_double();
-  this->MaxJointVel = this->get_parameter("max_joint_velocity").as_double();
-  const double robot_config_freq = this->get_parameter("robot_config_freq").as_double();
+  // Populate math_params from YAML
+  this->math_params.base_side     = this->get_parameter("base_triangle_side_length").as_double();
+  this->math_params.ee_side       = this->get_parameter("end_effector_side_length").as_double();
+  this->math_params.active_link   = this->get_parameter("active_link_length").as_double();
+  this->math_params.passive_link  = this->get_parameter("passive_link_length").as_double();
+  this->math_params.passive_width = this->get_parameter("passive_link_width").as_double();
+  this->math_params.joint_min     = this->get_parameter("joint_min").as_double();
+  this->math_params.joint_max     = this->get_parameter("joint_max").as_double();
+  this->math_params.max_joint_vel = this->get_parameter("max_joint_velocity").as_double();
+  const double robot_config_freq  = this->get_parameter("robot_config_freq").as_double();
 
   // Initialize robot_state with safe 45 degree angles to prevent FK failure on startup
   this->robot_state.theta1 = 0.785;
@@ -109,9 +100,9 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
   if (this->set_joint_limits_client->wait_for_service(std::chrono::seconds(2))) {
     // Call the set_joint_limits service and set the joint limits
     auto set_joint_limits_request = std::make_shared<SetJointLimits::Request>();
-    set_joint_limits_request->min_rad = this->JMin;
-    set_joint_limits_request->max_rad = this->JMax;
-    set_joint_limits_request->max_vel_rad_s = this->MaxJointVel;
+    set_joint_limits_request->min_rad = this->math_params.joint_min;
+    set_joint_limits_request->max_rad = this->math_params.joint_max;
+    set_joint_limits_request->max_vel_rad_s = this->math_params.max_joint_vel;
     auto result = this->set_joint_limits_client->async_send_request(set_joint_limits_request);
   } else {
     RCLCPP_WARN(this->get_logger(), "delta_motors/set_joint_limits service not found. Skipping hardware joint limits config (assuming simulation only).");
@@ -148,300 +139,92 @@ DeltaKinematics::DeltaKinematics() : Node("delta_kinematics") {
     robot_config_msg.joint_velocities.theta2_vel = this->robot_state.theta2_vel;
     robot_config_msg.joint_velocities.theta3_vel = this->robot_state.theta3_vel;
     // Perform FK to get the end effector position
-    robot_config_msg.end_effector_position = this->deltaFK(
+    auto fk = delta_math::forward_kinematics(this->math_params,
       robot_config_msg.joint_angles.theta1,
       robot_config_msg.joint_angles.theta2,
-      robot_config_msg.joint_angles.theta3
-    );
+      robot_config_msg.joint_angles.theta3);
+    robot_config_msg.end_effector_position.x = fk.x;
+    robot_config_msg.end_effector_position.y = fk.y;
+    robot_config_msg.end_effector_position.z = fk.z;
     this->robot_config_publisher->publish(robot_config_msg);
   }
   );
 }
 
 void DeltaKinematics::forwardKinematics(const std::shared_ptr<DeltaFK::Request> request, std::shared_ptr<DeltaFK::Response> response) {
-  Point position = this->deltaFK(
-    request->joint_angles.theta1, request->joint_angles.theta2, request->joint_angles.theta3
-  );
+  auto fk = delta_math::forward_kinematics(this->math_params,
+    request->joint_angles.theta1, request->joint_angles.theta2, request->joint_angles.theta3);
 
-  // Update the response data (end effector position)
-  response->solution.x = position.x;
-  response->solution.y = position.y;
-  response->solution.z = position.z;
+  response->solution.x = fk.x;
+  response->solution.y = fk.y;
+  response->solution.z = fk.z;
   response->success = true;
 }
 
 void DeltaKinematics::inverseKinematics(const std::shared_ptr<DeltaIK::Request> request, std::shared_ptr<DeltaIK::Response> response) {
-  DeltaJoints joints = this->deltaIK(
-    request->solution.x, request->solution.y, request->solution.z
-  );
+  auto ik = delta_math::inverse_kinematics(this->math_params,
+    request->solution.x, request->solution.y, request->solution.z);
 
-  // Update the response data (joint angles)
-  response->joint_angles.theta1 = joints.theta1;
-  response->joint_angles.theta2 = joints.theta2;
-  response->joint_angles.theta3 = joints.theta3;
+  response->joint_angles.theta1 = ik.theta1;
+  response->joint_angles.theta2 = ik.theta2;
+  response->joint_angles.theta3 = ik.theta3;
   response->joint_angles.theta4 = std::numeric_limits<double>::quiet_NaN();
   response->joint_angles.theta5 = std::numeric_limits<double>::quiet_NaN();
-  response->success = true;
+  response->success = std::isfinite(ik.theta1);
 }
-
-int DeltaKinematics::deltaIK_AngleYZ(float x0, float y0, float z0, float& theta) {
-  float y1 = -0.5 * tan30 * this->SB; // Half base * tan(30)
-  y0 -= 0.5 * tan30 * this->SP;    // shift center to edge
-  // z = a + b*y
-  float a = (x0 * x0 + y0 * y0 + z0 * z0 + this->AL * this->AL - this->PL * this->PL - y1 * y1) / (2 * z0);
-  float b = (y1 - y0) / z0;
-  // discriminant
-  float d = -(a + b * y1) * (a + b * y1) + this->AL * (b * b * this->AL + this->AL);
-  if (d < 0) return -1; // non-existing point
-  float yj = (y1 - a * b - sqrt(d)) / (b * b + 1); // choosing outer point
-  float zj = a + b * yj;
-  theta = atan(-zj / (y1 - yj)) + ((yj > y1) ? M_PI : 0.0);
-  return 0;
-}
-
 
 void DeltaKinematics::convertToJointTrajectory(const std::shared_ptr<ConvertToJointTrajectory::Request> request, std::shared_ptr<ConvertToJointTrajectory::Response> response) {
-  // Locally save the request data (end effector trajectory)
   std::vector<Point> trajectory = request->end_effector_trajectory;
   std::vector<DeltaJoints> joint_trajectory;
 
-  // Iterate through the trajectory and convert each point to joint angles
-  for (auto point : trajectory) {
-    DeltaJoints joints = this->deltaIK(point.x, point.y, point.z);
+  for (const auto& point : trajectory) {
+    auto ik = delta_math::inverse_kinematics(this->math_params, point.x, point.y, point.z);
 
     DeltaJoints joint_angles;
-    joint_angles.theta1 = joints.theta1;
-    joint_angles.theta2 = joints.theta2;
-    joint_angles.theta3 = joints.theta3;
+    joint_angles.theta1 = ik.theta1;
+    joint_angles.theta2 = ik.theta2;
+    joint_angles.theta3 = ik.theta3;
     joint_angles.theta4 = std::numeric_limits<double>::quiet_NaN();
     joint_angles.theta5 = std::numeric_limits<double>::quiet_NaN();
 
     joint_trajectory.push_back(joint_angles);
   }
 
-  // Update the response data (joint trajectory)
   response->joint_trajectory = joint_trajectory;
 }
 
 void DeltaKinematics::convertToJointVelTrajectory(const std::shared_ptr<ConvertToJointVelTrajectory::Request> request, std::shared_ptr<ConvertToJointVelTrajectory::Response> response) {
-  // Locally save the request data (end effector trajectory and velocities)
   std::vector<Point> ref_traj = request->end_effector_trajectory;
-  std::vector <DeltaJointVels> joint_velocities;
+  std::vector<DeltaJointVels> joint_velocities;
   const size_t N = ref_traj.size();
   if (N == 0 || N == 1) return;
-  // Create a time vector from 0 to 1 with equal intervals
+
   double dt = 1.0 / (N - 1);
-  // Compute end effector velocities over the reference trajectory using gradient
-  std::vector<EEVelocity> ee_vel = this->computeGradient(ref_traj, dt);
+
+  // Convert ROS Points to delta_math::Point3D for gradient computation
+  std::vector<delta_math::Point3D> positions(N);
+  for (size_t i = 0; i < N; ++i) {
+    positions[i] = {ref_traj[i].x, ref_traj[i].y, ref_traj[i].z};
+  }
+  auto ee_vel = delta_math::compute_gradient(positions, dt);
   RCLCPP_INFO(this->get_logger(), "Computed Gradient");
-  // Iterate through the trajectory and convert each point to joint angles
+
   for (size_t i = 0; i < ref_traj.size(); ++i) {
-    Point p = ref_traj[i]; // End effector position
-    DeltaJoints joints = this->deltaIK(p.x, p.y, p.z);
-    EEVelocity v = ee_vel[i]; // End effector velocity
-    joint_velocities.push_back(this->calcThetaDot(joints.theta1, joints.theta2, joints.theta3, v.x_vel, v.y_vel, v.z_vel));
+    auto ik = delta_math::inverse_kinematics(this->math_params,
+      ref_traj[i].x, ref_traj[i].y, ref_traj[i].z);
+    auto jv = delta_math::calc_theta_dot(this->math_params,
+      ik.theta1, ik.theta2, ik.theta3,
+      ee_vel[i].x_vel, ee_vel[i].y_vel, ee_vel[i].z_vel);
+
+    DeltaJointVels msg;
+    msg.theta1_vel = jv.theta1_vel;
+    msg.theta2_vel = jv.theta2_vel;
+    msg.theta3_vel = jv.theta3_vel;
+    joint_velocities.push_back(msg);
   }
   RCLCPP_INFO(this->get_logger(), "Created Joint Velocity Trajectory");
 
-  // Update the response data (joint velocity trajectory)
   response->joint_vel_trajectory = joint_velocities;
-}
-
-Point DeltaKinematics::deltaFK(float theta1, float theta2, float theta3) {
-  float x = 0.0;
-  float y = 0.0;
-  float z = 0.0;
-
-  float t = (this->SB - this->SP) * tan30 / 2;
-  float y1 = -(t + this->AL * cos(theta1));
-  float z1 = -this->AL * sin(theta1);
-  float y2 = (t + this->AL * cos(theta2)) * sin30;
-  float x2 = y2 * tan60;
-  float z2 = -this->AL * sin(theta2);
-  float y3 = (t + this->AL * cos(theta3)) * sin30;
-  float x3 = -y3 * tan60;
-  float z3 = -this->AL * sin(theta3);
-  float dnm = (y2 - y1) * x3 - (y3 - y1) * x2;
-  float w1 = y1 * y1 + z1 * z1;
-  float w2 = x2 * x2 + y2 * y2 + z2 * z2;
-  float w3 = x3 * x3 + y3 * y3 + z3 * z3;
-
-  // x = (a1*z + b1)/dnm
-  float a1 = (z2 - z1) * (y3 - y1) - (z3 - z1) * (y2 - y1);
-  float b1 = -((w2 - w1) * (y3 - y1) - (w3 - w1) * (y2 - y1)) / 2.0;
-
-  // y = (a2*z + b2)/dnm;
-  float a2 = -(z2 - z1) * x3 + (z3 - z1) * x2;
-  float b2 = ((w2 - w1) * x3 - (w3 - w1) * x2) / 2.0;
-
-  // a*z^2 + b*z + c = 0
-  float a = a1 * a1 + a2 * a2 + dnm * dnm;
-  float b = 2 * (a1 * b1 + a2 * (b2 - y1 * dnm) - z1 * dnm * dnm);
-  float c = (b2 - y1 * dnm) * (b2 - y1 * dnm) + b1 * b1 + dnm * dnm * (z1 * z1 - this->PL * this->PL);
-
-  // discriminant
-  float d = b * b - (float)4.0 * a * c;
-  Point p;  // Default initialize to 0
-  if (d < 0) {
-    RCLCPP_ERROR(this->get_logger(), "DeltaFK: Invalid Configuration (%f, %f, %f) [rad]", theta1, theta2, theta3);
-    p.x = 0; p.y = 0; p.z = -250.0; // Fail-safe default coordinate
-  } else {
-    z = -0.5 * (b + sqrt(d)) / a;
-    x = (a1 * z + b1) / dnm;
-    y = (a2 * z + b2) / dnm;
-    p.x = x; p.y = y; p.z = z;
-  }
-  return p;
-}
-
-DeltaJoints DeltaKinematics::deltaIK(float x, float y, float z) {
-  float theta1 = 0.0;
-  float theta2 = 0.0;
-  float theta3 = 0.0;
-
-  int status = this->deltaIK_AngleYZ(x, y, z, theta1);
-  if (status == 0) {
-    status = this->deltaIK_AngleYZ(x * cos120 + y * sin120, y * cos120 - x * sin120, z, theta2);  // rotate coords to +120 deg
-  } else {
-    RCLCPP_ERROR(this->get_logger(), "DeltaIK: Non-existing point (%f, %f, %f) [mm]", x, y, z);
-  }
-  if (status == 0) {
-    status = this->deltaIK_AngleYZ(x * cos120 - y * sin120, y * cos120 + x * sin120, z, theta3);  // rotate coords to -120 deg
-  } else {
-    RCLCPP_ERROR(this->get_logger(), "DeltaIK: Non-existing point (%f, %f, %f) [mm]", x, y, z);
-  }
-  DeltaJoints joints;
-  joints.theta1 = theta1;
-  joints.theta2 = theta2;
-  joints.theta3 = theta3;
-  joints.theta4 = std::numeric_limits<double>::quiet_NaN();
-  joints.theta5 = std::numeric_limits<double>::quiet_NaN();
-  return joints;
-}
-
-std::pair<std::vector<double>, std::vector<double>> DeltaKinematics::calcAuxAngles(double theta1, double theta2, double theta3) {
-  // First determine the end effector position using FK
-  Point position = this->deltaFK(theta1, theta2, theta3);
-
-  const double UP = (sqrt3 / 3) * this->SP;
-  const Eigen::Vector3d P = {position.x, position.y, position.z};
-  const Eigen::Vector3d D = {UP - this->AL, 0, 0};
-
-  Eigen::Matrix3d C;
-  for (int i = 0; i < 3; ++i) {
-    double phi_i = this->phi[i];
-    Eigen::Matrix3d R;
-    R << std::cos(phi_i), std::sin(phi_i), 0,
-      -std::sin(phi_i), std::cos(phi_i), 0,
-      0, 0, 1;
-    Eigen::Vector3d c_i = R * P + D;
-    // Set the i-th column of C to c_i.
-    C.col(i) = c_i;
-  }
-  double C_x2 = C(0, 1);
-  double C_y2 = C(1, 1);
-  double C_z2 = C(2, 1);
-  double C_x3 = C(0, 2);
-  double C_y3 = C(1, 2);
-  double C_z3 = C(2, 2);
-  // C_squared = c_xi^2 + c_yi^2 + c_zi^2
-  double C_sqrd_2 = C_x2 * C_x2 + C_y2 * C_y2 + C_z2 * C_z2;
-  double C_sqrd_3 = C_x3 * C_x3 + C_y3 * C_y3 + C_z3 * C_z3;
-  // theta_3i = arccos(C_yi / PL)
-  double t32 = acos(C_y2 / this->PL);
-  double t33 = acos(C_y3 / this->PL);
-  // k_numerator = c_xi ^ 2 + c_yi ^ 2 + c_zi ^ 2 - L ^ 2 - ELL ^ 2
-  // k_denominator = 2 * L * ELL * sin(theta_3i)
-  // theta_2i = arccos(k_numerator / k_denominator)
-  double t22_numerator = C_sqrd_2 - this->AL * this->AL - this->PL * this->PL;
-  double t22_denominator = 2 * this->AL * this->PL * sin(t32);
-  double t23_numerator = C_sqrd_3 - this->AL * this->AL - this->PL * this->PL;
-  double t23_denominator = 2 * this->AL * this->PL * sin(t33);
-  double t22 = acos(t22_numerator / t22_denominator);
-  double t23 = acos(t23_numerator / t23_denominator);
-  // theta_1i is the actuated angles which were passed into the function
-  // We only need to return the auxiliary angles
-  return std::make_pair(std::vector<double>{theta2, t22, t23}, std::vector<double>{theta3, t32, t33});
-}
-
-Eigen::Matrix3d DeltaKinematics::calcJacobian(double theta1, double theta2, double theta3) {
-  // The Jacobian matrix has 2 components: JTheta and Jp
-  // Since this Jacobian will be used to compute the joint velocities, we need the inverse of JTheta
-  // Jp * p_dot = JTheta * theta_dot -> theta_dot = JTheta_inv * Jp * p_dot
-
-  // Obtain auxiliary angles
-  auto aux_angles = this->calcAuxAngles(theta1, theta2, theta3);
-  const std::vector<double> t1 = {theta1, theta2, theta3};
-  const std::vector<double> t2 = aux_angles.first;
-  const std::vector<double> t3 = aux_angles.second;
-  double t22 = t2[1];
-  double t23 = t2[2];
-  double t32 = t3[1];
-  double t33 = t3[2];
-
-  // Jp Calculation
-  auto J_ix = [this, &t1, &t2, &t3](int i) -> double {
-    return sin(t3[i]) * cos(t2[i] + t1[i]) * cos(this->phi[i]) + cos(t3[i]) * sin(this->phi[i]);
-  };
-  auto J_iy = [this, &t1, &t2, &t3](int i) -> double {
-    return -sin(t3[i]) * cos(t2[i] + t1[i]) * sin(this->phi[i]) + cos(t3[i]) * cos(this->phi[i]);
-  };
-  auto J_iz = [this, &t1, &t2, &t3](int i) -> double {
-    return sin(t3[i]) * sin(t2[i] + t1[i]);
-  };
-  Eigen::Matrix3d Jp;
-  for (int i = 0; i < 3; ++i) {
-    Jp(i, 0) = J_ix(i);
-    Jp(i, 1) = J_iy(i);
-    Jp(i, 2) = J_iz(i);
-  }
-
-  // JTheta Calculation
-  Eigen::Matrix3d JTheta;
-  // Populate the diagonals with AL*sin(t2[i])*sin(t3[i])
-  JTheta(0, 0) = this->AL * sin(theta2) * sin(theta3);
-  JTheta(1, 1) = this->AL * sin(t22) * sin(t23);
-  JTheta(2, 2) = this->AL * sin(t32) * sin(t33);
-
-  // Invert JTheta
-  Eigen::Matrix3d JTheta_inv = JTheta.inverse();
-  return JTheta_inv * Jp;
-}
-
-DeltaJointVels DeltaKinematics::calcThetaDot(double theta1, double theta2, double theta3, double x_dot, double y_dot, double z_dot) {
-  Eigen::Matrix3d J = this->calcJacobian(theta1, theta2, theta3);
-  Eigen::Vector3d p_dot(x_dot, y_dot, z_dot);
-  Eigen::Vector3d theta_dot = J * p_dot;
-  DeltaJointVels joint_vels;
-  joint_vels.theta1_vel = theta_dot(0);
-  joint_vels.theta2_vel = theta_dot(1);
-  joint_vels.theta3_vel = theta_dot(2);
-  return joint_vels;
-}
-
-std::vector<EEVelocity> DeltaKinematics::computeGradient(const std::vector<Point>& position_data, double dt) {
-  size_t n = position_data.size();
-  std::vector<EEVelocity> velocities(n, {0.0, 0.0, 0.0});
-  if (n == 0 || n == 1) return velocities;
-
-  // Use forward difference for the first point
-  velocities[0].x_vel = (position_data[1].x - position_data[0].x) / dt;
-  velocities[0].y_vel = (position_data[1].y - position_data[0].y) / dt;
-  velocities[0].z_vel = (position_data[1].z - position_data[0].z) / dt;
-
-  // Use central difference for interior points
-  for (size_t i = 1; i < n - 1; ++i) {
-    velocities[i].x_vel = (position_data[i + 1].x - position_data[i - 1].x) / (2 * dt);
-    velocities[i].y_vel = (position_data[i + 1].y - position_data[i - 1].y) / (2 * dt);
-    velocities[i].z_vel = (position_data[i + 1].z - position_data[i - 1].z) / (2 * dt);
-  }
-
-  // Use backward difference for the last point
-  velocities[n - 1].x_vel = (position_data[n - 1].x - position_data[n - 2].x) / dt;
-  velocities[n - 1].y_vel = (position_data[n - 1].y - position_data[n - 2].y) / dt;
-  velocities[n - 1].z_vel = (position_data[n - 1].z - position_data[n - 2].z) / dt;
-
-  return velocities;
 }
 
 int main(int argc, char* argv[]) {

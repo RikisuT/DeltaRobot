@@ -15,9 +15,10 @@ A 3-DOF delta robot ROS 2 control stack, being extended to a **5-DOF system** wi
 
 | Component | Details |
 |---|---|
-| Servos | Waveshare ST3215 × 3 (STS serial bus, 12-bit, 1 Mbaud) |
+| Bicep Servos | Waveshare ST3215-HS × 3 (STS serial bus, 12-bit, 1 Mbaud) |
+| EE Servos | Waveshare STS3032 × 2 (tilt + spin, differential mechanism) |
 | Driver | Waveshare Servo Driver with ESP32 via `/dev/ttyUSB0` |
-| Sensors | VL53L1X ToF range sensor, BNO055 9-DoF IMU |
+| Sensors | VL53L4CD ToF range sensors × 3, ISM330DHCX 6-DoF IMU |
 | Simulation | ROS 2 Jazzy + Gazebo Harmonic |
 
 ## Dependencies
@@ -32,16 +33,43 @@ pip install -e repos/waveshare_stservo_python
 ```
 > The `repos/` folder is gitignored — keep the clone in place for the editable install to work.
 
+## Architecture
+
+The workspace enforces a clean separation between C++ core control and Python
+tooling. See [API_BOUNDARIES.md](API_BOUNDARIES.md) for the full contract.
+
+```
+C++ core (delta_robot)
+├── delta_math.hpp        — Pure math library (FK, IK, Jacobian, trajectories)
+├── kinematics node       — FK/IK services, trajectory conversion
+├── motion_planner node   — Service/action handlers, trajectory execution, TF
+└── range_scanner node    — Lidar scan aggregation
+
+Python drivers (delta_robot_drivers)
+├── motor_control_node    — ESP32 serial bridge
+├── joint_state_bridge    — Gazebo joint states bridge (sim only)
+└── ee_tf_broadcaster     — IMU + ToF sensor TF broadcaster
+
+Python tooling (separate packages)
+├── delta_robot_gui       — PyQt control center
+├── delta_robot_task_executor — G-code / JSON task playback
+├── delta_robot_visualization — TF and trajectory plotters
+└── delta_robot_testing   — Debug and testing utilities
+```
+
 ## Package Structure
 
-| Package | Description |
-|---|---|
-| `delta_robot` | Core nodes: kinematics, motion planner, motor control, 3D scanner |
-| `delta_robot_gui` | PyQt control center for Cartesian targets, G-code, and JSON tasks |
-| `delta_robot_sim` | Gazebo simulation with `ros2_control` integration |
-| `delta_robot_description` | SDF robot model and meshes |
-| `deltarobot_interfaces` | Custom ROS 2 messages and services |
-| `delta_robot_sensors` | IMU and ToF sensor nodes |
+| Package | Language | Description |
+|---|---|---|
+| `delta_robot` | C++ | Core nodes: kinematics, motion planner, range scanner, and `delta_math` library |
+| `delta_robot_drivers` | Python | Hardware/sim driver nodes: motor control, joint state bridge, EE TF broadcaster |
+| `delta_robot_gui` | Python | PyQt control center for Cartesian targets, G-code, and JSON tasks |
+| `delta_robot_sim` | C++/Launch | Gazebo simulation with `ros2_control` integration |
+| `delta_robot_description` | SDF/Meshes | Robot model and meshes |
+| `deltarobot_interfaces` | ROS IDL | Custom ROS 2 messages, services, and actions |
+| `delta_robot_task_executor` | Python | G-code and JSON task playback tools |
+| `delta_robot_visualization` | Python | TF and trajectory visualization tools |
+| `delta_robot_testing` | Python | Debug and testing utilities |
 
 ## Build
 
@@ -75,15 +103,14 @@ ros2 launch delta_robot_sim delta_robot_spawn.launch.py
 Then start the control stack:
 
 ```bash
-# Terminal 2 — Kinematics server
-ros2 run delta_robot kinematics --ros-args \
-  --params-file install/delta_robot/share/delta_robot/config/delta_config.yaml
+# Terminal 2 — Core stack (kinematics + motion planner + motor control)
+ros2 launch delta_robot delta_robot.launch.py
 
-# Terminal 3 — Motion planner
-ros2 run delta_robot motion_planner
-
-# Terminal 4 — GUI controller (Cartesian / G-code / JSON)
+# Terminal 3 — GUI controller (Cartesian / G-code / JSON)
 ros2 launch delta_robot_gui delta_robot_gui.launch.py
+
+# Terminal 4 — Measurement cube tooling (TF broadcaster + plotter)
+ros2 launch delta_robot cube.launch.py
 ```
 
 Run a demo trajectory:
@@ -107,18 +134,11 @@ Available demos: `circle`, `pringle`, `axes`, `up_down`, `scan`
 > **Prerequisite:** Connect the Waveshare Servo Driver (ESP32) via USB
 > and verify it appears as `/dev/ttyUSB0`.
 
-Open **three** terminals (source the workspace in each):
+Open **two** terminals (source the workspace in each):
 
 ```bash
-# Terminal 1 — Kinematics server
-ros2 run delta_robot kinematics --ros-args \
-  --params-file install/delta_robot/share/delta_robot/config/delta_config.yaml
-
-# Terminal 2 — Motion planner
-ros2 run delta_robot motion_planner
-
-# Terminal 3 — Motor control (communicates with physical servos)
-ros2 run delta_robot motor_control_node.py
+# Terminal 1 — Core stack (kinematics + motion planner + motor control)
+ros2 launch delta_robot delta_robot.launch.py
 ```
 
 You can then send commands exactly as in the simulation (e.g. the demo
@@ -129,5 +149,3 @@ service call above).
 BSD-3-Clause — see [LICENSE](LICENSE).
 Original work Copyright © 2025 Sharwin Patil.
 Modifications Copyright © 2025 Likhithraj T Acharya.
-
-

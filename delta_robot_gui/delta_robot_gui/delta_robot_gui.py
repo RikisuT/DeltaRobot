@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import rclpy
 from rclpy.parameter import Parameter
 from rclpy.parameter_client import AsyncParameterClient
+from ament_index_python.packages import get_package_share_directory
 from PyQt5.QtCore import QEvent, QProcess, QPoint, Qt, QTimer
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (
@@ -866,7 +867,7 @@ class DeltaRobotGui(QMainWindow):
         layout.setSpacing(14)
 
         description = QLabel(
-            "Pick a G-code file and run it through delta_robot/gcode_parser.py."
+            "Pick a G-code file and run it through delta_robot_task_executor/gcode_parser."
         )
         description.setObjectName("hintLabel")
         description.setStyleSheet("padding: 8px 6px; color: #9aa9b9; font-size: 12px;")
@@ -967,7 +968,7 @@ class DeltaRobotGui(QMainWindow):
         layout.setSpacing(14)
 
         description = QLabel(
-            "Pick a JSON task list and run it through delta_robot/json_task_sequencer.py."
+            "Pick a JSON task list and run it through delta_robot_task_executor/json_task_sequencer."
         )
         description.setObjectName("hintLabel")
         description.setStyleSheet("padding: 8px 6px; color: #9aa9b9; font-size: 12px;")
@@ -1501,8 +1502,6 @@ class DeltaRobotGui(QMainWindow):
         Qt-safe."""
         import numpy as np
         from scipy.interpolate import CubicSpline
-        from PyQt5.QtCore import QTimer
-
         # Disable button in main thread
         QTimer.singleShot(0, lambda: self.playback_button.setEnabled(False))
         try:
@@ -2378,12 +2377,18 @@ class DeltaRobotGui(QMainWindow):
             QMessageBox.warning(self, "Missing file", "Select a G-code file first.")
             return
 
+        config_path = os.path.join(
+            get_package_share_directory("delta_robot"), "config", "delta_config.yaml"
+        )
+
         args = [
             "run",
-            "delta_robot",
-            "gcode_parser.py",
+            "delta_robot_task_executor",
+            "gcode_parser",
             file_path,
             "--ros-args",
+            "--params-file",
+            config_path,
             "-p",
             f"default_units:={self.gcode_units.currentText()}",
             "-p",
@@ -2397,12 +2402,18 @@ class DeltaRobotGui(QMainWindow):
             QMessageBox.warning(self, "Missing file", "Select a JSON task file first.")
             return
 
+        config_path = os.path.join(
+            get_package_share_directory("delta_robot"), "config", "delta_config.yaml"
+        )
+
         args = [
             "run",
-            "delta_robot",
-            "json_task_sequencer.py",
+            "delta_robot_task_executor",
+            "json_task_sequencer",
             file_path,
             "--ros-args",
+            "--params-file",
+            config_path,
             "-p",
             f"json_units:={self.json_units.currentText()}",
             "-p",

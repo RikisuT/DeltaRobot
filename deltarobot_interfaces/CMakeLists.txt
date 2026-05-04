@@ -33,6 +33,7 @@ if(BUILD_TESTING)
 endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/ExecuteTrajectory.action"
   "msg/DeltaJoints.msg"
   "msg/DeltaJointVels.msg"
   "msg/RobotConfig.msg"

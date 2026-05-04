@@ -1,7 +1,9 @@
 #ifndef MOTION_PLANNER_HPP_
 #define MOTION_PLANNER_HPP_
 #include "rclcpp/rclcpp.hpp"
+#include "delta_robot/delta_math.hpp"
 #include "deltarobot_interfaces/msg/delta_joints.hpp"
+#include "deltarobot_interfaces/action/execute_trajectory.hpp"
 #include "deltarobot_interfaces/srv/play_demo_trajectory.hpp"
 #include "deltarobot_interfaces/srv/delta_ik.hpp"
 #include "deltarobot_interfaces/srv/delta_fk.hpp"
@@ -16,6 +18,7 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2_ros/transform_broadcaster.hpp"
 #include "trajectory_msgs/msg/joint_trajectory.hpp"
@@ -42,6 +45,8 @@ using MoveToConfiguration = deltarobot_interfaces::srv::MoveToConfiguration;
 using MotionDemo = deltarobot_interfaces::srv::MotionDemo;
 using PlayCustomTrajectory = deltarobot_interfaces::srv::PlayCustomTrajectory;
 using SetMotionMode = deltarobot_interfaces::srv::SetMotionMode;
+using ExecuteTrajectory = deltarobot_interfaces::action::ExecuteTrajectory;
+using GoalHandleExecuteTrajectory = rclcpp_action::ServerGoalHandle<ExecuteTrajectory>;
 using Float64MultiArray = std_msgs::msg::Float64MultiArray;
 
 class DeltaMotionPlanner : public rclcpp::Node {
@@ -132,6 +137,7 @@ private:
   rclcpp::Service<MotionDemo>::SharedPtr motion_demo_server;
   rclcpp::Service<PlayCustomTrajectory>::SharedPtr play_custom_trajectory_server;
   rclcpp::Service<SetMotionMode>::SharedPtr set_motion_mode_server;
+  rclcpp_action::Server<ExecuteTrajectory>::SharedPtr execute_trajectory_action_server;
 
   // Clients
   rclcpp::Client<ConvertToJointTrajectory>::SharedPtr convert_to_joint_trajectory_client;
@@ -181,16 +187,22 @@ private:
   void playCustomTrajectory(
     const std::shared_ptr<PlayCustomTrajectory::Request> request,
     std::shared_ptr<PlayCustomTrajectory::Response> response);
+  bool queueCustomTrajectory(const std::vector<Point>& trajectory, unsigned int step_ms);
+  double estimateTrajectoryDurationSec(std::size_t points, unsigned int step_ms) const;
+  rclcpp_action::GoalResponse handleExecuteTrajectoryGoal(
+    const rclcpp_action::GoalUUID& uuid,
+    std::shared_ptr<const ExecuteTrajectory::Goal> goal);
+  rclcpp_action::CancelResponse handleExecuteTrajectoryCancel(
+    const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle);
+  void handleExecuteTrajectoryAccepted(
+    const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle);
   void playDemoTrajectory(const std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response);
 
-  std::vector<Point> readCSV(const std::string& fileName);
+  /// Convert delta_math trajectory to ROS Point vector.
+  static std::vector<Point> toRosPoints(const std::vector<delta_math::Point3D>& pts);
 
-  std::vector<Point> straightUpDownTrajectory();
-  std::vector<Point> pringleTrajectory();
-  std::vector<Point> axesTrajectory();
-  std::vector<Point> circleTrajectory();
-  std::vector<Point> scanTrajectory();
-  std::vector<Point> randomSampleTrajectory(const int numPoints);
+  /// Build a demo trajectory by name, using delta_math generators.
+  std::vector<Point> buildDemoTrajectory(const std::string& name);
 };
 
 #endif  // MOTION_PLANNER_HPP_

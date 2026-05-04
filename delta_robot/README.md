@@ -1,5 +1,27 @@
 # `delta_robot` Package
 
+Pure C++ core control package. All motion math lives in the `delta_math` header-only
+library; the ROS nodes are thin service/action wrappers.
+
+> Python driver nodes (motor control, joint state bridge, EE TF broadcaster) have
+> been moved to the [`delta_robot_drivers`](../delta_robot_drivers/) package.
+
+## Math Library
+
+### `delta_math.hpp`
+
+Header-only C++ library with **zero ROS dependency**, located at
+`include/delta_robot/delta_math.hpp`. Contains:
+
+- **FK / IK:** `forward_kinematics()`, `inverse_kinematics()`, `ik_angle_yz()`
+- **Jacobian:** `calc_jacobian()`, `calc_aux_angles()`, `calc_theta_dot()`
+- **Velocity:** `compute_gradient()` (finite-difference end-effector velocities)
+- **Trajectories:** `straight_up_down_trajectory()`, `pringle_trajectory()`, `circle_trajectory()`, `axes_trajectory()`
+- **I/O:** `read_csv()`, `random_sample_trajectory()`
+
+All functions operate on lightweight POD structs (`Point3D`, `JointAngles`,
+`JointVelocities`) and a `DeltaRobotParams` struct for robot geometry.
+
 ## Nodes
 
 ### `kinematics`
@@ -12,51 +34,15 @@ Provides forward and inverse kinematics as ROS 2 services. Accepts a config YAML
 
 Top-level control node. Sends joint trajectory commands to both the physical motors and the Gazebo simulation simultaneously.
 
-**Services:** `play_demo_trajectory`, `move_to_point`, `move_to_pose`, `move_to_configuration`, `motion_demo`
+**Services:** `play_demo_trajectory`, `move_to_point`, `move_to_pose`, `move_to_configuration`, `motion_demo`, `play_custom_trajectory`, `set_motion_mode`
 
-Additional trajectory service: `play_custom_trajectory` (batched end-effector trajectory with step timing)
+**Actions:** `execute_trajectory` (lightweight action for executing batched, long-running end-effector trajectories)
 
 Built-in demos: `circle`, `pringle`, `axes`, `up_down`, `scan`
 
-### `motor_control_node.py` *(Python)*
-
-Interfaces with the **Waveshare ST3215** serial bus servos via the [`stservo`](https://github.com/iltlo/waveshare_stservo_python) Python SDK (install with `pip install -e repos/waveshare_stservo_python`).
-
-Converts radians ↔ motor ticks, handles position and velocity control via GroupSyncWrite, and publishes joint position/velocity feedback at 25 Hz.
-
-**Subscribes:** `delta_motors/set_joints`, `delta_motors/set_joint_vels`
-**Publishes:** `delta_motors/motor_position_feedback`, `delta_motors/motor_velocity_feedback`
-**Service:** `delta_motors/set_joint_limits`
-
-### `joint_state_bridge.py` *(Python)*
-
-Bridges `/joint_states` (from `joint_state_broadcaster` in simulation) to the motor feedback topics expected by `kinematics`. Only needed in simulation — replaced by `motor_control_node` on hardware.
-
-### `gcode_parser.py` *(Python)*
-
-Executes a subset of G-code by calling `delta_motion_planner/move_to_pose` for each motion command.
-
-If available, it uses `delta_motion_planner/play_custom_trajectory` for smoother batched execution.
-
-Supported commands: `G0`, `G1`, `G20`, `G21`, `G28`, `G90`, `G91`, and feed `F`.
-
-### `json_task_sequencer.py` *(Python)*
-
-Executes JSON task lists in sequence using `delta_motion_planner/move_to_pose`.
-
-If available, it uses `delta_motion_planner/play_custom_trajectory` for smoother batched execution.
-
-Supported actions: `move`, `wait`, `home`.
-
-Actions `tilt` and `spin` are supported through the `move_to_pose` interface. Action `suction` remains source-compatible and is skipped unless a dedicated suction interface is added.
-
 ### `range_scanner`
 
-3D scanning node. Moves the end-effector through the `scan` trajectory while recording (x, y, z, distance) data from the VL53L1X ToF sensor to map surfaces.
-
-### `delta_trajectory_generator` *(Deprecated)*
-
-Legacy standalone trajectory generation node. Functionality is now fully covered by `motion_planner`.
+3D scanning node. Moves the end-effector through the `scan` trajectory while recording (x, y, z, distance) data from the ToF sensor to map surfaces.
 
 ## G-code and JSON Usage
 
@@ -65,34 +51,34 @@ Prerequisite: start the core stack (`kinematics` + `motion_planner`) before runn
 Run G-code:
 
 ```bash
-ros2 run delta_robot gcode_parser.py \
+ros2 run delta_robot_task_executor gcode_parser \
   $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/circle_test.gcode
 ```
 
 Smoother G-code execution (more interpolation steps):
 
 ```bash
-ros2 run delta_robot gcode_parser.py \
+ros2 run delta_robot_task_executor gcode_parser \
   $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/circle_test.gcode \
-  --ros-args -p motion_rate_hz:=100.0 -p default_units:=meters
+  --ros-args -p motion_rate_hz:=100.0 -p units:=meters
 ```
 
 Run JSON task sequence:
 
 ```bash
-ros2 run delta_robot json_task_sequencer.py \
+ros2 run delta_robot_task_executor json_task_sequencer \
   $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/example_task.json
 ```
 
 Smoother timed JSON moves:
 
 ```bash
-ros2 run delta_robot json_task_sequencer.py \
+ros2 run delta_robot_task_executor json_task_sequencer \
   $(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/example_task.json \
-  --ros-args -p motion_rate_hz:=100.0 -p json_units:=meters
+  --ros-args -p motion_rate_hz:=100.0 -p units:=meters
 ```
 
-When `play_custom_trajectory` is available, both tools now queue a single batched trajectory per file/sequence.
+When `execute_trajectory` action or `play_custom_trajectory` service is available, both tools now queue a single batched trajectory per file/sequence.
 
 Optional launch wrapper:
 
@@ -101,3 +87,13 @@ ros2 launch delta_robot gcode_json_tools.launch.py \
   run_gcode:=true \
   gcode_file:=$(ros2 pkg prefix delta_robot)/share/delta_robot/config/examples/circle_test.gcode
 ```
+
+## Configuration Index
+
+The primary configuration file is `config/delta_config.yaml`. Key namespaces:
+
+- **`delta_kinematics`**: Geometry lengths (`base_triangle_side_length`, `active_link_length`), joint limits.
+- **`motion_planner`**: Controller timings (`traj_step_ms`, `live_controller_ms`), TF frames, and end-effector/tool-tip offsets (`ee_to_tilt_axis_offset_m`, `tilt_axis_to_tool_tip_offset_m`).
+- **`delta_motor_control`**: Serial bus timings and feedback stream rates. *(now in `delta_robot_drivers`)*
+- **`gcode_parser` & `json_task_sequencer`**: `units`, `motion_rate_hz`, and action server names.
+- **`ee_tf_broadcaster`**: IMU serial port configuration. *(now in `delta_robot_drivers`)*

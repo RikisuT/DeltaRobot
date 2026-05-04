@@ -1,0 +1,36 @@
+name: Lint
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  ament_lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup ROS 2
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      - name: Install ament_lint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          sudo apt-get install -y ros-humble-ament-lint-auto ros-humble-ament-lint-common
+
+      - name: Run ament_copyright
+        run: ament_copyright
+
+      - name: Run ament_flake8
+        run: ament_flake8
+
+      - name: Run ament_pep257
+        run: ament_pep257
+
+      - name: Run ament_cpplint
+        run: ament_cpplint

@@ -1,0 +1,10 @@
+# Goal
+geometry_msgs/Point[] trajectory
+int32 step_ms
+---
+bool success
+string message
+---
+uint32 current_index
+uint32 total_points
+float32 progress

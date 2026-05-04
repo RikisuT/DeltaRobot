@@ -480,6 +480,7 @@
             <axis>
                 <xyz>0 1 0</xyz>
             </axis>
+            <limit effort="2.0" velocity="11.1" lower="-3.14159" upper="3.14159"/>
         </joint>
         <joint name="motor_joint_${n}_free" type="revolute">
             <parent>servo_${n}</parent>

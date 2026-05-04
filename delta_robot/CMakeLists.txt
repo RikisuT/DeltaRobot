@@ -13,11 +13,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # ROS Dependencies
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(deltarobot_interfaces REQUIRED)
-find_package(delta_robot_sensors REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -44,10 +44,10 @@ target_link_libraries(kinematics ${deltarobot_interfaces_LIBRARIES})
 add_executable(motion_planner src/motion_planner.cpp)
 ament_target_dependencies(motion_planner
   rclcpp
+  rclcpp_action
   geometry_msgs
   trajectory_msgs
   deltarobot_interfaces
-  delta_robot_sensors
   tf2
   tf2_ros
   tf2_geometry_msgs)
@@ -61,32 +61,16 @@ target_link_libraries(range_scanner ${deltarobot_interfaces_LIBRARIES})
 # Python Nodes
 ament_python_install_package(${PROJECT_NAME})
 
-# Delta Trajectory Generator Node
-add_executable(delta_trajectory_generator src/trajectory_generator.cpp)
-ament_target_dependencies(delta_trajectory_generator rclcpp deltarobot_interfaces geometry_msgs)
-target_link_libraries(delta_trajectory_generator ${deltarobot_interfaces_LIBRARIES})
 
 # Install
 install(TARGETS
   kinematics
   motion_planner
   range_scanner
-  delta_trajectory_generator
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# Install Python scripts
-install(PROGRAMS
-  delta_robot/motor_control_node.py
-  delta_robot/motor_slider_tester.py
-  delta_robot/see_motors.py
-  delta_robot/joint_state_bridge.py
-  delta_robot/gcode_parser.py
-  delta_robot/json_task_sequencer.py
-  delta_robot/ee_tf_broadcaster.py
-  delta_robot/plot_ee_tf.py
-  DESTINATION lib/${PROJECT_NAME}
-)
+# Python driver scripts have been moved to the delta_robot_drivers package.
 
 # Install launch files
 install(DIRECTORY

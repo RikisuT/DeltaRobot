@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 import xacro
 import yaml
 
@@ -179,8 +179,8 @@ def generate_launch_description():
         output="screen",
     )
     load_joint_feedback = Node(
-        package="delta_robot",
-        executable="joint_state_bridge.py",
+        package="delta_robot_drivers",
+        executable="joint_state_bridge",
         name="joint_state_bridge",
         output="screen",
         parameters=[{"joint_names": feedback_joint_names}],
@@ -196,11 +196,18 @@ def generate_launch_description():
         period=5.0,
         actions=[
             Node(
-                package="delta_robot_sim",
+                package="delta_robot_visualization",
                 executable="plotter3d.py",
                 name="delta_ee_plotter",
                 output="screen",
                 parameters=[
+                    PathJoinSubstitution(
+                        [
+                            get_package_share_directory("delta_robot"),
+                            "config",
+                            "delta_config.yaml",
+                        ]
+                    ),
                     {
                         "marker_frame": "delta_robot/world_link",
                         "sim_child_frame": "delta_robot/end_effector_pin",

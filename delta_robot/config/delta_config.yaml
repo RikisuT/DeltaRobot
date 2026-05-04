@@ -8,10 +8,12 @@ delta_kinematics:
     joint_min: -0.174532925199 # [rad] (-10 deg)
     joint_max: 1.57079632679 # [rad] (90 deg)
     max_joint_velocity: 11.1 # [rad/s] (106 RPM as requested)
-    robot_config_freq: 50.0 # [Hz]  
+    robot_config_freq: 100.0 # [Hz]
 
 motion_planner:
   ros__parameters:
+    traj_step_ms: 10
+    live_controller_ms: 10
     commanded_tf_parent_frame: delta_robot/world_link
     commanded_tf_child_frame: delta_robot/commanded_end_effector_pin
     calculated_fk_tf_parent_frame: delta_robot/world_link
@@ -22,3 +24,31 @@ motion_planner:
     tilt_axis_to_tool_tip_offset_m: -0.028385
     tool_tip_to_object_center_offset_m: -0.0200
     enable_tilt_axis_compensation: true
+
+delta_motor_control:
+  ros__parameters:
+    stream_feedback_period_ms: 10
+    serial_timeout_s: 0.08
+    serial_cmd_wait_s: 0.12
+
+gcode_parser:
+  ros__parameters:
+    execute_trajectory_action: delta_motion_planner/execute_trajectory
+    units: meters
+    motion_rate_hz: 100.0
+
+json_task_sequencer:
+  ros__parameters:
+    execute_trajectory_action: delta_motion_planner/execute_trajectory
+    units: meters
+    motion_rate_hz: 100.0
+
+ee_tf_broadcaster:
+  ros__parameters:
+    port_name: /dev/ttyACM0
+    baudrate: 115200
+    update_rate_hz: 200.0
+
+delta_ee_plotter:
+  ros__parameters:
+    publish_rate_hz: 60.0

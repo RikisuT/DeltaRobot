@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>delta_robot_description</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <version>1.0.0</version>
+  <description>Robot model (SDF/URDF) and meshes for the delta robot.</description>
 
-  <maintainer email="hogehoge@gmail.com">Me</maintainer>
+  <maintainer email="likhiacharya@gmail.com">Likhithraj T Acharya</maintainer>
 
   <license>MIT</license>
 

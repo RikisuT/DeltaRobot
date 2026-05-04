@@ -42,6 +42,7 @@
 #include <iterator>
 #include <sstream>
 #include <ctime>
+#include <chrono>
 
 template<typename T>
 using ServiceResponseFuture = typename rclcpp::Client<T>::SharedFuture;
@@ -213,6 +214,16 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         std::bind(&DeltaMotionPlanner::playCustomTrajectory, this,
           std::placeholders::_1, std::placeholders::_2));
 
+      this->execute_trajectory_action_server = rclcpp_action::create_server<ExecuteTrajectory>(
+        this,
+        "delta_motion_planner/execute_trajectory",
+        std::bind(&DeltaMotionPlanner::handleExecuteTrajectoryGoal, this,
+          std::placeholders::_1, std::placeholders::_2),
+        std::bind(&DeltaMotionPlanner::handleExecuteTrajectoryCancel, this,
+          std::placeholders::_1),
+        std::bind(&DeltaMotionPlanner::handleExecuteTrajectoryAccepted, this,
+          std::placeholders::_1));
+
       this->set_motion_mode_server = create_service<SetMotionMode>(
         "delta_motion_planner/set_motion_mode",
         std::bind(&DeltaMotionPlanner::setMotionMode, this,
@@ -238,24 +249,28 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
             task_mode = (this->current_mode == TASK_MODE);
           }
           if (this->playDemo && task_mode && !this->motion_active.load()) {
-            switch (this->demo_sequence_index % 4) {
-              case 0:
-                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: pringle");
-                this->playTrajectory(this->pringleTrajectory());
-                break;
-              case 1:
-                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: circle");
-                this->playTrajectory(this->circleTrajectory());
-                break;
-              case 2:
-                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: axes");
-                this->playTrajectory(this->axesTrajectory());
-                break;
-              case 3:
-              default:
-                RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: random sample");
-                this->playTrajectory(this->randomSampleTrajectory(20));
-                break;
+            static const std::vector<std::string> demo_names = {"pringle", "circle", "axes"};
+            const auto& name = demo_names[this->demo_sequence_index % demo_names.size()];
+
+            // Special case: random sample every 4th demo
+            if (this->demo_sequence_index % 4 == 3) {
+              RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: random sample");
+              const std::string user = std::getenv("USER");
+              const std::string file_path = "/home/" + user + "/DeltaRobot/random_points.csv";
+              auto all_pts = delta_math::read_csv(file_path);
+              if (!all_pts.empty()) {
+                std::srand(std::time(0));
+                auto sampled = delta_math::random_sample_trajectory(all_pts, 20);
+                this->playTrajectory(toRosPoints(sampled));
+              } else {
+                RCLCPP_ERROR(get_logger(), "randomSampleTrajectory: no points loaded from CSV");
+              }
+            } else {
+              RCLCPP_INFO(get_logger(), "Playing MSI Demo Trajectory: %s", name.c_str());
+              auto traj = this->buildDemoTrajectory(name);
+              if (!traj.empty()) {
+                this->playTrajectory(traj);
+              }
             }
             this->demo_sequence_index++;
           }
@@ -875,39 +890,43 @@ bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
 void DeltaMotionPlanner::playCustomTrajectory(
   const std::shared_ptr<PlayCustomTrajectory::Request> request,
   std::shared_ptr<PlayCustomTrajectory::Response> response) {
-  if (request->trajectory.empty()) {
-    RCLCPP_ERROR(get_logger(), "play_custom_trajectory received empty trajectory");
-    response->success = false;
-    return;
-  }
-
   const int requested_step_ms = request->step_ms;
   const unsigned int step_ms = requested_step_ms > 0
     ? static_cast<unsigned int>(requested_step_ms)
     : static_cast<unsigned int>(this->get_parameter("traj_step_ms").as_int());
+  response->success = this->queueCustomTrajectory(request->trajectory, step_ms);
+  if (!response->success) {
+    RCLCPP_WARN(get_logger(), "Custom trajectory rejected");
+  }
+}
+
+bool DeltaMotionPlanner::queueCustomTrajectory(
+  const std::vector<Point>& trajectory,
+  unsigned int step_ms) {
+  if (trajectory.empty()) {
+    RCLCPP_ERROR(get_logger(), "play_custom_trajectory received empty trajectory");
+    return false;
+  }
 
   {
     std::lock_guard<std::mutex> lock(this->mode_mutex);
     if (this->current_mode != TASK_MODE) {
       RCLCPP_WARN(get_logger(), "Custom trajectory rejected: not in TASK_MODE");
-      response->success = false;
-      return;
+      return false;
     }
   }
 
   if (!this->tryAcquireMotionSlot("custom trajectory")) {
-    response->success = false;
-    return;
+    return false;
   }
 
-  // Apply z-offset adjustment so the end-effector reaches the commanded position
-  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(request->trajectory);
+  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(trajectory);
 
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
   convert_request->end_effector_trajectory = adjusted_trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-  auto ee_trajectory = std::make_shared<std::vector<Point>>(request->trajectory);
+  auto ee_trajectory = std::make_shared<std::vector<Point>>(trajectory);
   auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
     convert_request,
     [this, joint_traj, ee_trajectory, step_ms](ServiceResponseFuture<ConvertToJointTrajectory> future) {
@@ -933,26 +952,109 @@ void DeltaMotionPlanner::playCustomTrajectory(
   );
   (void)future_result;
 
-  response->success = true;
+  return true;
+}
+
+double DeltaMotionPlanner::estimateTrajectoryDurationSec(
+  std::size_t points,
+  unsigned int step_ms) const {
+  if (points == 0) {
+    return 0.0;
+  }
+  const double step_s = static_cast<double>(step_ms) / 1000.0;
+  return step_s * static_cast<double>(points);
+}
+
+rclcpp_action::GoalResponse DeltaMotionPlanner::handleExecuteTrajectoryGoal(
+  const rclcpp_action::GoalUUID&,
+  std::shared_ptr<const ExecuteTrajectory::Goal> goal) {
+  if (goal->trajectory.empty()) {
+    RCLCPP_WARN(get_logger(), "ExecuteTrajectory rejected: empty trajectory");
+    return rclcpp_action::GoalResponse::REJECT;
+  }
+  {
+    std::lock_guard<std::mutex> lock(this->mode_mutex);
+    if (this->current_mode != TASK_MODE) {
+      RCLCPP_WARN(get_logger(), "ExecuteTrajectory rejected: not in TASK_MODE");
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+  }
+  return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
+
+rclcpp_action::CancelResponse DeltaMotionPlanner::handleExecuteTrajectoryCancel(
+  const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle) {
+  (void)goal_handle;
+  this->cancel_current_traj = true;
+  return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void DeltaMotionPlanner::handleExecuteTrajectoryAccepted(
+  const std::shared_ptr<GoalHandleExecuteTrajectory> goal_handle) {
+  std::thread([this, goal_handle]() {
+    const auto goal = goal_handle->get_goal();
+    const int requested_step_ms = goal->step_ms;
+    const unsigned int step_ms = requested_step_ms > 0
+      ? static_cast<unsigned int>(requested_step_ms)
+      : static_cast<unsigned int>(this->get_parameter("traj_step_ms").as_int());
+
+    if (!this->queueCustomTrajectory(goal->trajectory, step_ms)) {
+      auto result = std::make_shared<ExecuteTrajectory::Result>();
+      result->success = false;
+      result->message = "trajectory rejected";
+      goal_handle->abort(result);
+      return;
+    }
+
+    const std::size_t total_points = goal->trajectory.size();
+    const double total_duration_s = this->estimateTrajectoryDurationSec(total_points, step_ms);
+    auto start = std::chrono::steady_clock::now();
+    rclcpp::Rate rate(10.0);
+
+    while (rclcpp::ok()) {
+      if (goal_handle->is_canceling()) {
+        this->cancel_current_traj = true;
+        auto result = std::make_shared<ExecuteTrajectory::Result>();
+        result->success = false;
+        result->message = "canceled";
+        goal_handle->canceled(result);
+        return;
+      }
+
+      auto now = std::chrono::steady_clock::now();
+      const double elapsed_s = std::chrono::duration<double>(now - start).count();
+      float progress = 0.0f;
+      if (total_duration_s > 0.0) {
+        progress = static_cast<float>(std::min(elapsed_s / total_duration_s, 1.0));
+      }
+
+      auto feedback = std::make_shared<ExecuteTrajectory::Feedback>();
+      feedback->total_points = static_cast<uint32_t>(total_points);
+      feedback->current_index = static_cast<uint32_t>(progress * total_points);
+      feedback->progress = progress;
+      goal_handle->publish_feedback(feedback);
+
+      if (elapsed_s >= total_duration_s) {
+        break;
+      }
+      rate.sleep();
+    }
+
+    auto result = std::make_shared<ExecuteTrajectory::Result>();
+    result->success = true;
+    result->message = "completed";
+    goal_handle->succeed(result);
+  }).detach();
 }
 
 void DeltaMotionPlanner::playDemoTrajectory(
   std::shared_ptr<PlayDemoTraj::Request> request, std::shared_ptr<PlayDemoTraj::Response> response) {
 
   std::string type = request->type.data;
-  std::vector<Point> trajectory;
-  const std::vector<std::string> available_demos = {"up_down", "pringle", "axes", "circle", "scan"};
-  if (type == "up_down") {
-    trajectory = this->straightUpDownTrajectory();
-  } else if (type == "pringle") {
-    trajectory = this->pringleTrajectory();
-  } else if (type == "axes") {
-    trajectory = this->axesTrajectory();
-  } else if (type == "circle") {
-    trajectory = this->circleTrajectory();
-  } else if (type == "scan") {
-    trajectory = this->scanTrajectory();
-  } else {
+  std::vector<Point> trajectory = this->buildDemoTrajectory(type);
+
+  if (trajectory.empty()) {
+    const std::vector<std::string> available_demos = {"up_down", "pringle", "axes", "circle", "scan"};
     RCLCPP_ERROR(get_logger(), "Invalid demo trajectory: %s", type.c_str());
     RCLCPP_ERROR(get_logger(), "Available demo trajectories: %s", std::accumulate(
       std::next(available_demos.begin()), available_demos.end(), available_demos[0],
@@ -971,218 +1073,34 @@ void DeltaMotionPlanner::playDemoTrajectory(
   }
 }
 
-std::vector<Point> DeltaMotionPlanner::scanTrajectory() {
-  // Scan trajectory is saved in "scan_trajectory.csv" file
-  return this->readCSV("scan_trajectory.csv");
+std::vector<Point> DeltaMotionPlanner::toRosPoints(const std::vector<delta_math::Point3D>& pts) {
+  std::vector<Point> ros_pts;
+  ros_pts.reserve(pts.size());
+  for (const auto& p : pts) {
+    Point rp;
+    rp.x = p.x;
+    rp.y = p.y;
+    rp.z = p.z;
+    ros_pts.push_back(rp);
+  }
+  return ros_pts;
 }
 
-std::vector<Point> DeltaMotionPlanner::straightUpDownTrajectory() {
-  // Create a simple up down trajectory with 4 oscillations between
-  // Z = -100 and Z = -200
-  const int num_points = 300;
-  std::vector<Point> trajectory;
-
-  const float center = -380.0;
-  const float amplitude = 75.0;
-  const int cycles = 5;
-
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = 0.0;
-    intermediate_pos.y = 0.0;
-    intermediate_pos.z = center + amplitude * sin(2 * M_PI * cycles * t);
-    trajectory.push_back(intermediate_pos);
+std::vector<Point> DeltaMotionPlanner::buildDemoTrajectory(const std::string& name) {
+  if (name == "up_down") {
+    return toRosPoints(delta_math::straight_up_down_trajectory());
+  } else if (name == "pringle") {
+    return toRosPoints(delta_math::pringle_trajectory());
+  } else if (name == "axes") {
+    return toRosPoints(delta_math::axes_trajectory());
+  } else if (name == "circle") {
+    return toRosPoints(delta_math::circle_trajectory());
+  } else if (name == "scan") {
+    const std::string user = std::getenv("USER");
+    const std::string file_path = "/home/" + user + "/DeltaRobot/scan_trajectory.csv";
+    return toRosPoints(delta_math::read_csv(file_path));
   }
-
-  return trajectory;
-}
-
-std::vector<Point> DeltaMotionPlanner::pringleTrajectory() {
-  // Circle Trajectory in XY plane while Z coordinate goes through 2 cycles of a sine wave
-  const int num_points = 200;
-  const float circle_center_z = -380.0;
-  const float amplitude = 25.0;
-
-  std::vector<float> t(num_points);
-  float step = (2 * M_PI) / (num_points - 1);
-  for (int i = 0; i < num_points; ++i) {
-    t[i] = i * step;
-  }
-
-  std::vector<float> x_circle(num_points);
-  std::vector<float> y_circle(num_points);
-  std::vector<float> z_circle(num_points);
-  for (int i = 0; i < num_points; ++i) {
-    x_circle[i] = (2.0 * amplitude) * cos(t[i]);
-    y_circle[i] = (2.0 * amplitude) * sin(t[i]);
-    z_circle[i] = circle_center_z + amplitude * sin(2 * t[i]);
-  }
-
-  // Create trajectory
-  std::vector<Point> trajectory(num_points);
-  for (int i = 0; i < num_points; ++i) {
-    trajectory[i].x = x_circle[i];
-    trajectory[i].y = y_circle[i];
-    trajectory[i].z = z_circle[i];
-  }
-
-  return trajectory;
-}
-
-std::vector<Point> DeltaMotionPlanner::axesTrajectory() {
-  // Trajectory showcasing the DOF of the DeltaRobot
-  // Path will be a translation along X axis, then Y axis, then Z axis
-
-  std::vector<Point> trajectory;
-
-  const float x_start = 0.0;
-  const float x_end = 60.0;
-  const float y_start = 0.0;
-  const float y_end = 60.0;
-  const float z_start = -380.0;
-  const float z_end = -320.0;
-  const int num_points = 25;
-
-  // X Axis Translation from (0, 0, -180) to (80, 0, -180)
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = x_start + t * (x_end - x_start);
-    intermediate_pos.y = y_start;
-    intermediate_pos.z = z_start;
-    trajectory.push_back(intermediate_pos);
-  }
-  // Go back to the starting point
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = x_end - t * (x_end - x_start);
-    intermediate_pos.y = y_start;
-    intermediate_pos.z = z_start;
-    trajectory.push_back(intermediate_pos);
-  }
-
-  // Y Axis translation from (0, 0, -180) to (0, 80, -180)
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = x_start;
-    intermediate_pos.y = y_start + t * (y_end - y_start);
-    intermediate_pos.z = z_start;
-    trajectory.push_back(intermediate_pos);
-  }
-  // Go back to the starting point
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = x_start;
-    intermediate_pos.y = y_end - t * (y_end - y_start);
-    intermediate_pos.z = z_start;
-    trajectory.push_back(intermediate_pos);
-  }
-
-  // Z Axis translation from (0, 0, -180) to (0, 0, -220)
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = x_start;
-    intermediate_pos.y = y_start;
-    intermediate_pos.z = z_start + t * (z_end - z_start);
-    trajectory.push_back(intermediate_pos);
-  }
-  // Go back to the starting point
-  for (int i = 0; i < num_points; i++) {
-    double t = static_cast<double>(i) / (num_points - 1);
-    Point intermediate_pos;
-    intermediate_pos.x = x_start;
-    intermediate_pos.y = y_start;
-    intermediate_pos.z = z_end - t * (z_end - z_start);
-    trajectory.push_back(intermediate_pos);
-  }
-
-  return trajectory;
-}
-
-std::vector<Point> DeltaMotionPlanner::circleTrajectory() {
-  // Circle Trajectory in XY plane while Z coordinate remains constant
-  const int num_points = 200;
-  const float center_z = -380.0;
-  const float radius = 40.0;
-
-  std::vector<float> t(num_points);
-  float step = (2 * M_PI) / (num_points - 1);
-  for (int i = 0; i < num_points; ++i) {
-    t[i] = i * step;
-  }
-
-  std::vector<float> x_circle(num_points);
-  std::vector<float> y_circle(num_points);
-  std::vector<float> z_circle(num_points);
-  for (int i = 0; i < num_points; ++i) {
-    x_circle[i] = radius * cos(t[i]);
-    y_circle[i] = radius * sin(t[i]);
-    z_circle[i] = center_z;
-  }
-
-  // Create trajectory
-  std::vector<Point> trajectory(num_points);
-  for (int i = 0; i < num_points; ++i) {
-    trajectory[i].x = x_circle[i];
-    trajectory[i].y = y_circle[i];
-    trajectory[i].z = z_circle[i];
-  }
-
-  return trajectory;
-}
-
-std::vector<Point> DeltaMotionPlanner::randomSampleTrajectory(const int numPoints) {
-  std::vector<Point> allPoints = this->readCSV("random_points.csv");
-  if (allPoints.empty()) {  // ← add this
-    RCLCPP_ERROR(get_logger(), "randomSampleTrajectory: no points loaded from CSV");
-    return {};
-  }
-  std::vector<Point> sampledPoints;
-  std::srand(std::time(0));
-  for (int i = 0; i < numPoints; ++i) {
-    int randomIndex = std::rand() % allPoints.size();
-    sampledPoints.push_back(allPoints[randomIndex]);
-  }
-  return sampledPoints;
-}
-
-std::vector<Point> DeltaMotionPlanner::readCSV(const std::string& fileName) {
-  const std::string user = std::getenv("USER");
-  const std::string file_path = "/home/" + user + "/DeltaRobot/" + fileName;
-  // The csv file has 3 columns: X, Y, Z
-  std::ifstream file(file_path);
-  if (!file.is_open()) {
-    RCLCPP_ERROR(get_logger(), "Failed to open file: %s", fileName.c_str());
-    return {};
-  }
-  std::vector<Point> trajectory;
-  std::string line;
-  bool first_line = true; // Skip the header
-  while (std::getline(file, line)) {
-    if (first_line) {
-      first_line = false;
-      continue;
-    }
-    std::istringstream iss(line);
-    std::string value;
-    Point p;
-
-    std::getline(iss, value, ',');
-    p.x = std::stod(value);
-    std::getline(iss, value, ',');
-    p.y = std::stod(value);
-    std::getline(iss, value, ',');
-    p.z = std::stod(value);
-
-    trajectory.push_back(p);
-  }
-  file.close();
-  return trajectory;
+  return {};
 }
 
 void DeltaMotionPlanner::setMotionMode(
