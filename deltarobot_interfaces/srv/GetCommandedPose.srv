@@ -1,0 +1,4 @@
+---
+geometry_msgs/Point pose
+float64 tilt
+float64 spin

@@ -32,6 +32,7 @@ class GCodeParserNode(TaskExecutorBase):
         self.declare_parameter("move_to_pose_service", "delta_motion_planner/move_to_pose")
         self.declare_parameter("play_custom_trajectory_service", "delta_motion_planner/play_custom_trajectory")
         self.declare_parameter("execute_trajectory_action", "delta_motion_planner/execute_trajectory")
+        self.declare_parameter("get_commanded_pose_service", "delta_motion_planner/get_commanded_pose")
         self.declare_parameter("units", "meters")
         self.declare_parameter("home_z_mm", -300.0)
         self.declare_parameter("min_move_time_s", 0.02)
@@ -46,6 +47,9 @@ class GCodeParserNode(TaskExecutorBase):
         )
         self.execute_trajectory_action = (
             self.get_parameter("execute_trajectory_action").get_parameter_value().string_value
+        )
+        self.get_commanded_pose_service = (
+            self.get_parameter("get_commanded_pose_service").get_parameter_value().string_value
         )
         default_units = self.get_parameter("units").get_parameter_value().string_value.lower()
         self.home_z_mm = (
@@ -71,6 +75,7 @@ class GCodeParserNode(TaskExecutorBase):
             self.move_to_pose_service,
             self.play_custom_trajectory_service,
             self.execute_trajectory_action,
+            self.get_commanded_pose_service,
         )
         self.custom_trajectory_available = False
 
@@ -92,6 +97,15 @@ class GCodeParserNode(TaskExecutorBase):
             self.execute_trajectory_action,
             timeout_sec=2.0,
         )
+
+        pt, tilt, spin = self.fetch_current_pose()
+        if pt is not None:
+            self.pos["X"] = pt.x
+            self.pos["Y"] = pt.y
+            self.pos["Z"] = pt.z
+            self.pos["A"] = tilt
+            self.pos["C"] = spin
+            self.get_logger().info(f"Starting from current physical position: ({pt.x:.1f}, {pt.y:.1f}, {pt.z:.1f})")
         if self.custom_trajectory_available:
             batched_result = self._run_batched_file()
             if batched_result == -1:
@@ -99,7 +113,6 @@ class GCodeParserNode(TaskExecutorBase):
                     "Batched mode disabled for this file due to A/C orientation commands; retrying point-wise"
                 )
                 self.custom_trajectory_available = False
-                self.pos = {"X": 0.0, "Y": 0.0, "Z": self.home_z_mm, "A": 0.0, "C": 0.0}
             else:
                 return batched_result
 

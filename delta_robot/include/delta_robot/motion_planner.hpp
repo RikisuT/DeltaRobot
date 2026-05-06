@@ -15,6 +15,7 @@
 #include "deltarobot_interfaces/srv/motion_demo.hpp"
 #include "deltarobot_interfaces/srv/play_custom_trajectory.hpp"
 #include "deltarobot_interfaces/srv/set_motion_mode.hpp"
+#include "deltarobot_interfaces/srv/get_commanded_pose.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -45,6 +46,7 @@ using MoveToConfiguration = deltarobot_interfaces::srv::MoveToConfiguration;
 using MotionDemo = deltarobot_interfaces::srv::MotionDemo;
 using PlayCustomTrajectory = deltarobot_interfaces::srv::PlayCustomTrajectory;
 using SetMotionMode = deltarobot_interfaces::srv::SetMotionMode;
+using GetCommandedPose = deltarobot_interfaces::srv::GetCommandedPose;
 using ExecuteTrajectory = deltarobot_interfaces::action::ExecuteTrajectory;
 using GoalHandleExecuteTrajectory = rclcpp_action::ServerGoalHandle<ExecuteTrajectory>;
 using Float64MultiArray = std_msgs::msg::Float64MultiArray;
@@ -65,7 +67,7 @@ private:
   bool initialized = false;
   std::size_t demo_sequence_index = 0;
   std::atomic<bool> cancel_current_traj{false};
-  std::unique_ptr<std::thread> traj_thread;
+
   std::atomic<bool> motion_active{false};
 
   // Motion mode state
@@ -101,8 +103,24 @@ private:
   std::string actual_fk_tf_parent_frame;
   std::string actual_fk_tf_child_frame;
 
+  Point current_commanded_pose;
+  double current_commanded_tilt = 0.0;
+  double current_commanded_spin = 0.0;
+  std::mutex commanded_state_mutex;
+
   // Latest motor feedback (radians) tracked for transition smoothing decisions
   std::array<double, 5> latest_motor_feedback{{0.0, 0.0, 0.0, 0.0, 0.0}};
+
+  // Trajectory playback state (replaces blocking loop)
+  std::vector<DeltaJoints> active_joint_traj;
+  std::vector<Point> active_ee_traj;
+  unsigned int traj_playback_index = 0;
+  unsigned int traj_step_ms_active = 10;
+  double traj_sim_tilt = 0.0;
+  double traj_sim_spin = 0.0;
+  rclcpp::TimerBase::SharedPtr traj_playback_timer;
+  
+  void trajectoryPlaybackTick();
   std::atomic<bool> have_latest_feedback{false};
   std::mutex feedback_mutex;
 
@@ -137,6 +155,7 @@ private:
   rclcpp::Service<MotionDemo>::SharedPtr motion_demo_server;
   rclcpp::Service<PlayCustomTrajectory>::SharedPtr play_custom_trajectory_server;
   rclcpp::Service<SetMotionMode>::SharedPtr set_motion_mode_server;
+  rclcpp::Service<GetCommandedPose>::SharedPtr get_commanded_pose_service;
   rclcpp_action::Server<ExecuteTrajectory>::SharedPtr execute_trajectory_action_server;
 
   // Clients
@@ -183,10 +202,16 @@ private:
     std::shared_ptr<SetMotionMode::Response> response);
 
   std::vector<Point> applyZOffsetToTrajectory(const std::vector<Point>& trajectory);
+  std::vector<Point> prependApproachSegment(
+    const std::vector<Point>& trajectory,
+    unsigned int step_ms);
   bool playTrajectory(const std::vector<Point>& trajectory);
   void playCustomTrajectory(
     const std::shared_ptr<PlayCustomTrajectory::Request> request,
     std::shared_ptr<PlayCustomTrajectory::Response> response);
+  void handleGetCommandedPose(
+    const std::shared_ptr<GetCommandedPose::Request> request,
+    std::shared_ptr<GetCommandedPose::Response> response);
   bool queueCustomTrajectory(const std::vector<Point>& trajectory, unsigned int step_ms);
   double estimateTrajectoryDurationSec(std::size_t points, unsigned int step_ms) const;
   rclcpp_action::GoalResponse handleExecuteTrajectoryGoal(

@@ -59,6 +59,12 @@ using ConvertToJointVelTrajectory = deltarobot_interfaces::srv::ConvertToJointVe
 DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
   RCLCPP_INFO(get_logger(), "DeltaMotionPlanner node started");
 
+  this->current_commanded_pose.x = 0.0;
+  this->current_commanded_pose.y = 0.0;
+  this->current_commanded_pose.z = -300.0;
+  this->current_commanded_tilt = 0.0;
+  this->current_commanded_spin = 0.0;
+
   // Create clients first (non-blocking)
   this->delta_ik_client = create_client<DeltaIK>("delta_kinematics/delta_ik");
   this->delta_fk_client = create_client<DeltaFK>("delta_kinematics/delta_fk");
@@ -229,6 +235,11 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
         std::bind(&DeltaMotionPlanner::setMotionMode, this,
           std::placeholders::_1, std::placeholders::_2));
 
+      this->get_commanded_pose_service = create_service<GetCommandedPose>(
+        "delta_motion_planner/get_commanded_pose",
+        std::bind(&DeltaMotionPlanner::handleGetCommandedPose, this,
+          std::placeholders::_1, std::placeholders::_2));
+
       this->initialized = true;
 
       // Live motion controller: runs at fixed rate (~50-100 Hz) for smooth real-time control
@@ -280,8 +291,8 @@ DeltaMotionPlanner::DeltaMotionPlanner() : Node("delta_motion_planner") {
 
 DeltaMotionPlanner::~DeltaMotionPlanner() {
   this->cancel_current_traj = true;
-  if (this->traj_thread && this->traj_thread->joinable()) {
-    this->traj_thread->join();
+  if (this->traj_playback_timer) {
+    this->traj_playback_timer->cancel();
   }
 }
 
@@ -332,6 +343,9 @@ void DeltaMotionPlanner::publishMotorCommands(
   const double sim_tilt,
   const double sim_spin,
   const std::vector<Point>* ee_trajectory) {
+  
+  if (joint_traj.empty()) return;
+
   // Build a single JointTrajectory message with all points and cumulative time stamps
   // The joint_trajectory_controller rejects single-point messages whose timestamp has already passed
   trajectory_msgs::msg::JointTrajectory traj_msg;
@@ -343,10 +357,8 @@ void DeltaMotionPlanner::publishMotorCommands(
   const double sim_spin_cmd = std::isfinite(sim_spin) ? sim_spin : 0.0;
 
   for (unsigned int i = 0; i < joint_traj.size(); i++) {
-    if (this->cancel_current_traj) break;
     DeltaJoints command = joint_traj[i];
     if (!std::isfinite(command.theta1) || !std::isfinite(command.theta2) || !std::isfinite(command.theta3)) {
-      RCLCPP_WARN(get_logger(), "Skipping joint command with invalid theta1-3 values");
       continue;
     }
     if (!std::isfinite(command.theta4)) {
@@ -371,32 +383,64 @@ void DeltaMotionPlanner::publishMotorCommands(
   // Publish the full trajectory once to Gazebo
   this->trajectory_pub->publish(traj_msg);
 
-  // Publish the joint commands to the physical motors with a delay per point
-  for (unsigned int i = 0; i < joint_traj.size(); i++) {
-    if (this->cancel_current_traj) break;
-    DeltaJoints command = joint_traj[i];
-    if (!std::isfinite(command.theta1) || !std::isfinite(command.theta2) || !std::isfinite(command.theta3)) {
-      continue;
+  // Setup state for timer-based physical motor command publishing
+  this->active_joint_traj = joint_traj;
+  if (ee_trajectory) {
+    this->active_ee_traj = *ee_trajectory;
+  } else {
+    this->active_ee_traj.clear();
+  }
+  this->traj_playback_index = 0;
+  this->traj_step_ms_active = step_ms;
+  this->traj_sim_tilt = sim_tilt_cmd;
+  this->traj_sim_spin = sim_spin_cmd;
+
+  // Start or reset the timer
+  if (this->traj_playback_timer) {
+    this->traj_playback_timer->cancel();
+  }
+  this->traj_playback_timer = this->create_wall_timer(
+    std::chrono::milliseconds(this->traj_step_ms_active),
+    std::bind(&DeltaMotionPlanner::trajectoryPlaybackTick, this)
+  );
+  
+  // Instantly fire the first point to avoid a 1-tick delay
+  this->trajectoryPlaybackTick();
+}
+
+void DeltaMotionPlanner::trajectoryPlaybackTick() {
+  if (this->cancel_current_traj || this->traj_playback_index >= this->active_joint_traj.size()) {
+    if (this->traj_playback_timer) {
+      this->traj_playback_timer->cancel();
     }
-    if (!std::isfinite(command.theta4)) {
-      command.theta4 = 0.0;
-    }
-    if (!std::isfinite(command.theta5)) {
-      command.theta5 = 0.0;
-    }
-    
+    this->releaseMotionSlot();
+    return;
+  }
+
+  DeltaJoints command = this->active_joint_traj[this->traj_playback_index];
+  if (std::isfinite(command.theta1) && std::isfinite(command.theta2) && std::isfinite(command.theta3)) {
+    if (!std::isfinite(command.theta4)) command.theta4 = 0.0;
+    if (!std::isfinite(command.theta5)) command.theta5 = 0.0;
+
     // Publish commanded target TF for this trajectory point if end-effector trajectory is available.
-    if (ee_trajectory && i < ee_trajectory->size()) {
-      const Point& ee_point = (*ee_trajectory)[i];
-      this->publishCommandedTargetTf(ee_point, sim_tilt_cmd, sim_spin_cmd);
+    if (this->traj_playback_index < this->active_ee_traj.size()) {
+      const Point& ee_point = this->active_ee_traj[this->traj_playback_index];
+      this->publishCommandedTargetTf(ee_point, this->traj_sim_tilt, this->traj_sim_spin);
+      {
+        std::lock_guard<std::mutex> lock(this->commanded_state_mutex);
+        this->current_commanded_pose = ee_point;
+        this->current_commanded_tilt = this->traj_sim_tilt;
+        this->current_commanded_spin = this->traj_sim_spin;
+      }
     }
 
     // Publish FK from commanded motor angles (mapped back into tool-point space).
-    this->publishCalculatedFkTfFromJointCommand(command, sim_tilt_cmd, sim_spin_cmd);
+    this->publishCalculatedFkTfFromJointCommand(command, this->traj_sim_tilt, this->traj_sim_spin);
     
     this->joint_pub->publish(command);
-    rclcpp::sleep_for(std::chrono::milliseconds(step_ms));
   }
+
+  this->traj_playback_index++;
 }
 
 void DeltaMotionPlanner::publishMotorVelocityCommands(const std::vector<DeltaJointVels>& joint_vel_traj, const unsigned int delay_ms) {
@@ -450,6 +494,12 @@ bool DeltaMotionPlanner::moveToPose(
   const double tilt_cmd = use_orientation ? tilt : 0.0;
   const double spin_cmd = use_orientation ? spin : 0.0;
   this->publishCommandedTargetTf(point, tilt_cmd, spin_cmd);
+  {
+    std::lock_guard<std::mutex> lock(this->commanded_state_mutex);
+    this->current_commanded_pose = point;
+    this->current_commanded_tilt = tilt_cmd;
+    this->current_commanded_spin = spin_cmd;
+  }
 
   Point wrist = point;
   // Incoming Cartesian points are in millimeters; YAML offsets are configured in meters.
@@ -569,7 +619,6 @@ void DeltaMotionPlanner::publishTfStream(
   // Apply a fixed visualization-frame correction requested by the user:
   // rotate Z by +90 deg, then Y by +180 deg. This only changes orientation.
   constexpr double kPi = 3.14159265358979323846;
-  constexpr double kHalfPi = 0.5 * kPi;
   tf2::Quaternion rot_z_180;
   rot_z_180.setRPY(kPi, 0.0, 0.0);
 
@@ -718,6 +767,15 @@ void DeltaMotionPlanner::publishActualFkTfFromJointFeedback(const DeltaJoints& j
   (void)future_result;
 }
 
+void DeltaMotionPlanner::handleGetCommandedPose(
+  const std::shared_ptr<GetCommandedPose::Request>,
+  std::shared_ptr<GetCommandedPose::Response> response) {
+  std::lock_guard<std::mutex> lock(this->commanded_state_mutex);
+  response->pose = this->current_commanded_pose;
+  response->tilt = this->current_commanded_tilt;
+  response->spin = this->current_commanded_spin;
+}
+
 void DeltaMotionPlanner::liveTargetCallback(const Point::SharedPtr msg) {
   if (!this->initialized) {
     return;
@@ -785,6 +843,19 @@ bool DeltaMotionPlanner::moveToConfiguration(const DeltaJoints& joints, bool req
     [this, joints](ServiceResponseFuture<DeltaFK> future) {
     auto response = future.get();
     if (response->success) {
+      double tilt_cmd = 0.0;
+      double spin_cmd = 0.0;
+      if (std::isfinite(joints.theta4) && std::isfinite(joints.theta5)) {
+        tilt_cmd = 0.5 * (joints.theta4 - joints.theta5);
+        spin_cmd = 0.25 * (joints.theta4 + joints.theta5);
+      }
+      const Point tool_point = this->convertWristToToolPoint(response->solution, tilt_cmd, spin_cmd);
+      {
+        std::lock_guard<std::mutex> lock(this->commanded_state_mutex);
+        this->current_commanded_pose = tool_point;
+        this->current_commanded_tilt = tilt_cmd;
+        this->current_commanded_spin = spin_cmd;
+      }
       // If the FK solution is valid, move to the configuration
       std::vector<DeltaJoints> joint_traj = {joints};
       this->publishMotorCommands(joint_traj, 0);
@@ -831,6 +902,68 @@ std::vector<Point> DeltaMotionPlanner::applyZOffsetToTrajectory(const std::vecto
   return adjusted_trajectory;
 }
 
+std::vector<Point> DeltaMotionPlanner::prependApproachSegment(
+  const std::vector<Point>& trajectory,
+  unsigned int step_ms) {
+  if (trajectory.empty() || step_ms == 0) {
+    return trajectory;
+  }
+
+  Point start_pose;
+  {
+    std::lock_guard<std::mutex> lock(this->commanded_state_mutex);
+    start_pose = this->current_commanded_pose;
+  }
+
+  const Point& first = trajectory.front();
+  constexpr double kMinApproachDistanceMm = 0.1;
+  const double step_s = static_cast<double>(step_ms) / 1000.0;
+
+  const double dx_start = first.x - start_pose.x;
+  const double dy_start = first.y - start_pose.y;
+  const double dz_start = first.z - start_pose.z;
+  const double start_distance = std::sqrt(dx_start * dx_start + dy_start * dy_start + dz_start * dz_start);
+
+  if (start_distance <= kMinApproachDistanceMm) {
+    return trajectory;
+  }
+
+  double approach_speed = 0.0;
+  if (trajectory.size() >= 2) {
+    const Point& second = trajectory[1];
+    const double dx_seg = second.x - first.x;
+    const double dy_seg = second.y - first.y;
+    const double dz_seg = second.z - first.z;
+    const double seg_distance = std::sqrt(dx_seg * dx_seg + dy_seg * dy_seg + dz_seg * dz_seg);
+    approach_speed = (step_s > 0.0) ? (seg_distance / step_s) : 0.0;
+  }
+
+  constexpr double kFallbackSpeedMmS = 100.0;
+  if (!(approach_speed > 0.0)) {
+    approach_speed = kFallbackSpeedMmS;
+  }
+
+  const double approach_duration_s = start_distance / approach_speed;
+  const unsigned int steps = std::max(1u, static_cast<unsigned int>(std::ceil(approach_duration_s / step_s)));
+
+  std::vector<Point> with_approach;
+  with_approach.reserve(steps + trajectory.size());
+
+  for (unsigned int step = 1; step <= steps; ++step) {
+    const double alpha = static_cast<double>(step) / static_cast<double>(steps);
+    Point approach_point;
+    approach_point.x = start_pose.x + dx_start * alpha;
+    approach_point.y = start_pose.y + dy_start * alpha;
+    approach_point.z = start_pose.z + dz_start * alpha;
+    with_approach.push_back(approach_point);
+  }
+
+  if (trajectory.size() >= 2) {
+    with_approach.insert(with_approach.end(), std::next(trajectory.begin()), trajectory.end());
+  }
+  return with_approach;
+}
+
 bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
   {
     std::lock_guard<std::mutex> lock(this->mode_mutex);
@@ -844,15 +977,19 @@ bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
     return false;
   }
 
+  // Apply approach so we do not teleport to the first point.
+  const unsigned int step_ms = static_cast<unsigned int>(this->get_parameter("traj_step_ms").as_int());
+  const auto approach_trajectory = this->prependApproachSegment(trajectory, step_ms);
+
   // Apply z-offset adjustment so the end-effector reaches the commanded position
-  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(trajectory);
+  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(approach_trajectory);
 
   // Create a joint trajectory using the convert_to_joint_trajectory service
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
   convert_request->end_effector_trajectory = adjusted_trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-  auto ee_trajectory = std::make_shared<std::vector<Point>>(trajectory);
+  auto ee_trajectory = std::make_shared<std::vector<Point>>(approach_trajectory);
   // ---------- BEGIN_CITATION [1] ----------
   auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
     convert_request,
@@ -867,18 +1004,14 @@ bool DeltaMotionPlanner::playTrajectory(const std::vector<Point>& trajectory) {
 
     // Cancel existing trajectory if any
     this->cancel_current_traj = true;
-    if (this->traj_thread && this->traj_thread->joinable()) {
-      this->traj_thread->join();
+    if (this->traj_playback_timer) {
+      this->traj_playback_timer->cancel();
     }
     this->cancel_current_traj = false;
 
-    // Start new trajectory thread
-    this->traj_thread = std::make_unique<std::thread>([this, joint_traj, ee_trajectory]() {
-      // Reload parameter in case it changed
-      this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
-      this->publishMotorCommands(*joint_traj, this->param_traj_step_ms, 0.0, 0.0, &(*ee_trajectory));
-      this->releaseMotionSlot();
-    });
+    // Reload parameter in case it changed
+    this->param_traj_step_ms = this->get_parameter("traj_step_ms").as_int();
+    this->publishMotorCommands(*joint_traj, this->param_traj_step_ms, 0.0, 0.0, &(*ee_trajectory));
   }
   );
   // ---------- END_CITATION [1] ----------
@@ -920,13 +1053,15 @@ bool DeltaMotionPlanner::queueCustomTrajectory(
     return false;
   }
 
-  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(trajectory);
+  // Apply approach so we do not teleport to the first point.
+  const auto approach_trajectory = this->prependApproachSegment(trajectory, step_ms);
+  const auto adjusted_trajectory = this->applyZOffsetToTrajectory(approach_trajectory);
 
   auto convert_request = std::make_shared<ConvertToJointTrajectory::Request>();
   convert_request->end_effector_trajectory = adjusted_trajectory;
 
   auto joint_traj = std::make_shared<std::vector<DeltaJoints>>();
-  auto ee_trajectory = std::make_shared<std::vector<Point>>(trajectory);
+  auto ee_trajectory = std::make_shared<std::vector<Point>>(approach_trajectory);
   auto future_result = this->convert_to_joint_trajectory_client->async_send_request(
     convert_request,
     [this, joint_traj, ee_trajectory, step_ms](ServiceResponseFuture<ConvertToJointTrajectory> future) {
@@ -939,15 +1074,12 @@ bool DeltaMotionPlanner::queueCustomTrajectory(
       *joint_traj = convert_response->joint_trajectory;
 
       this->cancel_current_traj = true;
-      if (this->traj_thread && this->traj_thread->joinable()) {
-        this->traj_thread->join();
+      if (this->traj_playback_timer) {
+        this->traj_playback_timer->cancel();
       }
       this->cancel_current_traj = false;
 
-      this->traj_thread = std::make_unique<std::thread>([this, joint_traj, ee_trajectory, step_ms]() {
-        this->publishMotorCommands(*joint_traj, step_ms, 0.0, 0.0, &(*ee_trajectory));
-        this->releaseMotionSlot();
-      });
+      this->publishMotorCommands(*joint_traj, step_ms, 0.0, 0.0, &(*ee_trajectory));
     }
   );
   (void)future_result;

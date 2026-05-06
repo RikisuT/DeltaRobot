@@ -12,6 +12,9 @@ delta_kinematics:
 
 motion_planner:
   ros__parameters:
+    home_x_mm: 0.0
+    home_y_mm: 0.0
+    home_z_mm: -300.0
     traj_step_ms: 10
     live_controller_ms: 10
     commanded_tf_parent_frame: delta_robot/world_link

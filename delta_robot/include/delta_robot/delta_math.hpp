@@ -307,6 +307,26 @@ inline std::vector<EEVelocity> compute_gradient(const std::vector<Point3D>& posi
   return velocities;
 }
 
+/// Check if a Cartesian point is reachable (IK has a valid solution
+/// AND all joint angles are within [joint_min, joint_max]).
+inline bool is_reachable(const DeltaRobotParams& params, double x, double y, double z) {
+  JointAngles joints = inverse_kinematics(params, x, y, z);
+  if (!std::isfinite(joints.theta1) || !std::isfinite(joints.theta2) || !std::isfinite(joints.theta3)) {
+    return false;
+  }
+  
+  auto check_bounds = [](double theta, double min_val, double max_val) {
+    return (theta >= min_val) && (theta <= max_val);
+  };
+  
+  if (!check_bounds(joints.theta1, params.joint_min, params.joint_max) ||
+      !check_bounds(joints.theta2, params.joint_min, params.joint_max) ||
+      !check_bounds(joints.theta3, params.joint_min, params.joint_max)) {
+    return false;
+  }
+  return true;
+}
+
 // ─── Trajectory generators ──────────────────────────────────────────────────
 
 /// Straight up-and-down oscillation along the Z axis.

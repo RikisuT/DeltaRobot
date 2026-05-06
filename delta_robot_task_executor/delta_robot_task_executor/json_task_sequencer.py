@@ -29,24 +29,45 @@ class JsonTaskSequencer(TaskExecutorBase):
     def __init__(self, task_file: str):
         super().__init__("json_task_sequencer")
 
-        self.declare_parameter("move_to_pose_service", "delta_motion_planner/move_to_pose")
-        self.declare_parameter("play_custom_trajectory_service", "delta_motion_planner/play_custom_trajectory")
-        self.declare_parameter("execute_trajectory_action", "delta_motion_planner/execute_trajectory")
+        self.declare_parameter(
+            "move_to_pose_service", "delta_motion_planner/move_to_pose"
+        )
+        self.declare_parameter(
+            "play_custom_trajectory_service",
+            "delta_motion_planner/play_custom_trajectory",
+        )
+        self.declare_parameter(
+            "execute_trajectory_action", "delta_motion_planner/execute_trajectory"
+        )
+        self.declare_parameter(
+            "get_commanded_pose_service", "delta_motion_planner/get_commanded_pose"
+        )
         self.declare_parameter("units", "meters")
         self.declare_parameter("default_duration_s", 1.0)
         self.declare_parameter("motion_rate_hz", 100.0)
         self.declare_parameter("home_x_mm", 0.0)
         self.declare_parameter("home_y_mm", 0.0)
-        self.declare_parameter("home_z_mm", -220.0)
+        self.declare_parameter("home_z_mm", -300.0)
 
         self.move_to_pose_service = (
-            self.get_parameter("move_to_pose_service").get_parameter_value().string_value
+            self.get_parameter("move_to_pose_service")
+            .get_parameter_value()
+            .string_value
         )
         self.play_custom_trajectory_service = (
-            self.get_parameter("play_custom_trajectory_service").get_parameter_value().string_value
+            self.get_parameter("play_custom_trajectory_service")
+            .get_parameter_value()
+            .string_value
         )
         self.execute_trajectory_action = (
-            self.get_parameter("execute_trajectory_action").get_parameter_value().string_value
+            self.get_parameter("execute_trajectory_action")
+            .get_parameter_value()
+            .string_value
+        )
+        self.get_commanded_pose_service = (
+            self.get_parameter("get_commanded_pose_service")
+            .get_parameter_value()
+            .string_value
         )
         self.json_units = self.get_parameter("units").get_parameter_value().string_value
         self.default_duration_s = (
@@ -73,6 +94,7 @@ class JsonTaskSequencer(TaskExecutorBase):
             self.move_to_pose_service,
             self.play_custom_trajectory_service,
             self.execute_trajectory_action,
+            self.get_commanded_pose_service,
         )
         self.custom_trajectory_available = False
 
@@ -90,6 +112,15 @@ class JsonTaskSequencer(TaskExecutorBase):
             timeout_sec=2.0,
         )
 
+        pt, tilt, spin = self.fetch_current_pose()
+        if pt is not None:
+            self.current_pos["x"] = pt.x
+            self.current_pos["y"] = pt.y
+            self.current_pos["z"] = pt.z
+            self.current_tilt = tilt
+            self.current_spin = spin
+            self.get_logger().info(f"Starting from current physical position: ({pt.x:.1f}, {pt.y:.1f}, {pt.z:.1f})")
+
         tasks = self._load_tasks(self.task_file)
         if tasks is None:
             return 1
@@ -98,7 +129,9 @@ class JsonTaskSequencer(TaskExecutorBase):
             f"Loaded {len(tasks)} task(s) from {self.task_file} with units={self.json_units}"
         )
 
-        if self.custom_trajectory_available and not self._tasks_require_orientation(tasks):
+        if self.custom_trajectory_available and not self._tasks_require_orientation(
+            tasks
+        ):
             return self._run_batched_tasks(tasks)
         if self.custom_trajectory_available:
             self.get_logger().info(
@@ -129,16 +162,25 @@ class JsonTaskSequencer(TaskExecutorBase):
                 x_mm = self._to_mm(task.get("x", self.current_pos["x"]))
                 y_mm = self._to_mm(task.get("y", self.current_pos["y"]))
                 z_mm = self._to_mm(task.get("z", self.current_pos["z"]))
-                duration = max(0.0, float(task.get("duration", self.default_duration_s)))
+                duration = max(
+                    0.0, float(task.get("duration", self.default_duration_s))
+                )
                 self._append_segment_points(points, x_mm, y_mm, z_mm, duration, step_dt)
                 self.current_pos.update({"x": x_mm, "y": y_mm, "z": z_mm})
                 total_duration_s += duration
                 continue
 
             if action == "home":
-                duration = max(0.0, float(task.get("duration", self.default_duration_s)))
+                duration = max(
+                    0.0, float(task.get("duration", self.default_duration_s))
+                )
                 self._append_segment_points(
-                    points, self.home["x"], self.home["y"], self.home["z"], duration, step_dt
+                    points,
+                    self.home["x"],
+                    self.home["y"],
+                    self.home["z"],
+                    duration,
+                    step_dt,
                 )
                 self.current_pos.update(self.home)
                 total_duration_s += duration
@@ -257,7 +299,9 @@ class JsonTaskSequencer(TaskExecutorBase):
         if action == "spin":
             return self._do_spin(task, idx)
         if action == "suction":
-            self.get_logger().warn(f"[{idx}] action 'suction' not wired in this stack, skipping")
+            self.get_logger().warn(
+                f"[{idx}] action 'suction' not wired in this stack, skipping"
+            )
             duration = float(task.get("duration", 0.0) or 0.0)
             if duration > 0.0:
                 time.sleep(duration)
@@ -356,7 +400,9 @@ class JsonTaskSequencer(TaskExecutorBase):
         dz = z_mm - z0
 
         if duration <= 0.0:
-            if not self._call_move_pose_service(x_mm, y_mm, z_mm, tilt1, spin1, use_orientation, idx):
+            if not self._call_move_pose_service(
+                x_mm, y_mm, z_mm, tilt1, spin1, use_orientation, idx
+            ):
                 return False
             self.current_pos.update({"x": x_mm, "y": y_mm, "z": z_mm})
             if use_orientation:
@@ -380,7 +426,9 @@ class JsonTaskSequencer(TaskExecutorBase):
                 )
 
             step_ms = max(1, int(round(step_dt * 1000.0)))
-            if not self._call_custom_trajectory_service(trajectory_points, step_ms, idx):
+            if not self._call_custom_trajectory_service(
+                trajectory_points, step_ms, idx
+            ):
                 return False
 
             self.current_pos.update({"x": x_mm, "y": y_mm, "z": z_mm})
@@ -397,7 +445,9 @@ class JsonTaskSequencer(TaskExecutorBase):
             spin_i = spin0 + (spin1 - spin0) * alpha
 
             tick_start = time.monotonic()
-            if not self._call_move_pose_service(xi, yi, zi, tilt_i, spin_i, use_orientation, idx):
+            if not self._call_move_pose_service(
+                xi, yi, zi, tilt_i, spin_i, use_orientation, idx
+            ):
                 return False
 
             elapsed = time.monotonic() - tick_start
@@ -452,7 +502,9 @@ class JsonTaskSequencer(TaskExecutorBase):
                 return True
         return False
 
-    def _read_optional_angle_rad(self, task: Dict[str, Any], *keys: str) -> Optional[float]:
+    def _read_optional_angle_rad(
+        self, task: Dict[str, Any], *keys: str
+    ) -> Optional[float]:
         for key in keys:
             if key in task and task[key] is not None:
                 return float(task[key])
@@ -466,7 +518,9 @@ def main(args=None) -> int:
     rclpy.init(args=args)
 
     if len(sys.argv) < 2:
-        print("Usage: ros2 run delta_robot_task_executor json_task_sequencer <tasks.json>")
+        print(
+            "Usage: ros2 run delta_robot_task_executor json_task_sequencer <tasks.json>"
+        )
         rclpy.shutdown()
         return 1
 
